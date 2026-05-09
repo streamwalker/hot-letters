@@ -20,13 +20,24 @@ const checkAuth = createIsomorphicFn()
       "supabase-auth-token",
     ].filter(Boolean) as string[];
 
+    const found: string[] = [];
     const hasAuthCookie = cookieNames.some((name) => {
       try {
-        return Boolean(getCookie(name));
+        if (getCookie(name)) {
+          found.push(name);
+          return true;
+        }
+        return false;
       } catch {
         return false;
       }
     });
+
+    console.log(
+      `[auth/ssr] checkAuth href=${href} cookiesChecked=${cookieNames.join(",")} found=${
+        found.join(",") || "none"
+      } -> ${hasAuthCookie ? "allow" : "redirect:/login"}`,
+    );
 
     if (!hasAuthCookie) {
       throw redirect({ to: "/login", search: { redirect: href } });
@@ -34,6 +45,11 @@ const checkAuth = createIsomorphicFn()
   })
   .client(async (href: string) => {
     const { data } = await supabase.auth.getSession();
+    console.log(
+      `[auth/client] checkAuth href=${href} session=${
+        data.session ? `user:${data.session.user.id}` : "none"
+      } -> ${data.session ? "allow" : "redirect:/login"}`,
+    );
     if (!data.session) {
       throw redirect({ to: "/login", search: { redirect: href } });
     }
