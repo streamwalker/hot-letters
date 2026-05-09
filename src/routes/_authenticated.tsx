@@ -13,30 +13,58 @@ const SUPABASE_PROJECT_REF = (import.meta as { env?: Record<string, string> }).e
  */
 const checkAuth = createIsomorphicFn()
   .server(async (href: string) => {
-    const { getCookie } = await import("@tanstack/react-start/server");
-    const cookieNames = [
+    const { getCookie, getCookies, getRequestHeader } = await import(
+      "@tanstack/react-start/server"
+    );
+
+    // 1. Known cookie names (project-specific + legacy fallbacks).
+    const knownNames = [
       SUPABASE_PROJECT_REF ? `sb-${SUPABASE_PROJECT_REF}-auth-token` : null,
       "sb-access-token",
+      "sb-refresh-token",
       "supabase-auth-token",
+      "supabase.auth.token",
     ].filter(Boolean) as string[];
 
     const found: string[] = [];
-    const hasAuthCookie = cookieNames.some((name) => {
+    for (const name of knownNames) {
       try {
-        if (getCookie(name)) {
-          found.push(name);
-          return true;
-        }
-        return false;
+        if (getCookie(name)) found.push(name);
       } catch {
-        return false;
+        /* ignore */
       }
-    });
+    }
+
+    // 2. Pattern fallback: any `sb-*-auth-token(.N)?` cookie (chunked cookies
+    //    from supabase-js v2 use `.0`, `.1` suffixes; refs differ across envs).
+    const sbPattern = /^sb-[^=;]+-auth-token(?:\.\d+)?$/;
+    let allCookies: Record<string, string> = {};
+    try {
+      allCookies = getCookies() ?? {};
+    } catch {
+      // Some adapters don't expose getCookies — fall back to parsing the header.
+      try {
+        const header = getRequestHeader("cookie") ?? "";
+        for (const part of header.split(/;\s*/)) {
+          const eq = part.indexOf("=");
+          if (eq > 0) allCookies[part.slice(0, eq)] = part.slice(eq + 1);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    for (const name of Object.keys(allCookies)) {
+      if (sbPattern.test(name) && !found.includes(name)) found.push(name);
+    }
+
+    const hasAuthCookie = found.length > 0;
 
     console.log(
-      `[auth/ssr] checkAuth href=${href} cookiesChecked=${cookieNames.join(",")} found=${
+      `[auth/ssr] checkAuth href=${href} known=${knownNames.join(",")} found=${
         found.join(",") || "none"
-      } -> ${hasAuthCookie ? "allow" : "redirect:/login"}`,
+      } totalCookies=${Object.keys(allCookies).length} -> ${
+        hasAuthCookie ? "allow" : "redirect:/login"
+      }`,
     );
 
     if (!hasAuthCookie) {
