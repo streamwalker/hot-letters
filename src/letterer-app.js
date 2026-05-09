@@ -1877,12 +1877,74 @@ $("file-load").addEventListener("change", (e) => {
 });
 
 // ============== EXPORT PNG ==============
+// ============== EXPORT PNG ==============
+const GOOGLE_FONT_FAMILIES = {
+  "Bangers": "Bangers",
+  "Bungee": "Bungee",
+  "Comic Neue": "Comic+Neue:wght@400;700",
+  "Kalam": "Kalam:wght@400;700",
+  "Luckiest Guy": "Luckiest+Guy",
+  "Permanent Marker": "Permanent+Marker",
+};
+const fontCssCache = new Map(); // family -> inlined @font-face CSS
+function familyFromStack(stack) {
+  const m = (stack || "").match(/'([^']+)'|"([^"]+)"|([^,]+)/);
+  return ((m && (m[1] || m[2] || m[3])) || "").trim();
+}
+async function inlineGoogleFont(family) {
+  if (fontCssCache.has(family)) return fontCssCache.get(family);
+  const spec = GOOGLE_FONT_FAMILIES[family];
+  if (!spec) { fontCssCache.set(family, ""); return ""; }
+  // Fetch the Google Fonts CSS — browser UA gets woff2 by default.
+  const cssResp = await fetch(`https://fonts.googleapis.com/css2?family=${spec}&display=swap`);
+  if (!cssResp.ok) throw new Error(`CSS fetch ${cssResp.status}`);
+  let css = await cssResp.text();
+  // Find every woff2 URL and replace with a base64 data URL.
+  const urls = Array.from(css.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.woff2)\)/g)).map(m => m[1]);
+  const unique = Array.from(new Set(urls));
+  for (const u of unique) {
+    const r = await fetch(u);
+    if (!r.ok) throw new Error(`font fetch ${r.status}`);
+    const buf = await r.arrayBuffer();
+    let bin = "";
+    const bytes = new Uint8Array(buf);
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+    }
+    const b64 = btoa(bin);
+    const dataUrl = `data:font/woff2;base64,${b64}`;
+    // Replace every occurrence of this URL.
+    css = css.split(u).join(dataUrl);
+  }
+  fontCssCache.set(family, css);
+  return css;
+}
+
 $("btn-export-png").addEventListener("click", async () => {
   if (!state.imageDataUrl) { toast("Load a page image first"); return; }
   // Deselect so selection chrome doesn't render
   const wasSelected = state.selectedId; state.selectedId = null; render();
   try {
     const w = state.imageW, h = state.imageH;
+
+    // Collect all Google font families actually used by balloons.
+    const families = new Set();
+    for (const b of state.balloons) {
+      const fam = familyFromStack(b.font);
+      if (GOOGLE_FONT_FAMILIES[fam]) families.add(fam);
+    }
+    let inlinedCss = "";
+    for (const fam of families) {
+      try { inlinedCss += await inlineGoogleFont(fam) + "\n"; }
+      catch (e) { toast(`Could not embed ${fam} — using fallback`); }
+    }
+
+    // Make sure any in-page font faces are loaded before rasterizing.
+    if (document.fonts && document.fonts.ready) {
+      try { await document.fonts.ready; } catch (_) { /* ignore */ }
+    }
+
     const canvas = document.createElement("canvas");
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext("2d");
@@ -1896,12 +1958,21 @@ $("btn-export-png").addEventListener("click", async () => {
     svgClone.setAttribute("xmlns", SVG_NS);
     svgClone.setAttribute("width", w);
     svgClone.setAttribute("height", h);
-    // inline foreignObject HTML — must keep xmlns
+    // Strip contentEditable on cloned foreignObject divs (cosmetic).
+    svgClone.querySelectorAll("[contenteditable]").forEach(el => el.removeAttribute("contenteditable"));
+    // Inline used Google Fonts so the SVG has no external network deps.
+    if (inlinedCss) {
+      const defs = document.createElementNS(SVG_NS, "defs");
+      const style = document.createElementNS(SVG_NS, "style");
+      style.setAttribute("type", "text/css");
+      style.textContent = inlinedCss;
+      defs.appendChild(style);
+      svgClone.insertBefore(defs, svgClone.firstChild);
+    }
     const ser = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([ser], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(svgBlob);
     const overlayImg = new Image();
-    overlayImg.crossOrigin = "anonymous";
     overlayImg.src = url;
     await new Promise((res, rej) => { overlayImg.onload = res; overlayImg.onerror = rej; });
     ctx.drawImage(overlayImg, 0, 0);
@@ -1914,7 +1985,7 @@ $("btn-export-png").addEventListener("click", async () => {
     }, "image/png");
     toast("PNG exported");
   } catch (err) {
-    await appAlert("Export failed: " + err.message + "\n\nTip: Some fonts may fail to embed in PNG export. Try a system font like Arial or Comic Sans MS.", "Export failed");
+    await appAlert("Export failed: " + err.message + "\n\nTry Save Project and reload, or pick a system font (Arial, Comic Sans MS) for the balloons.", "Export failed");
   } finally {
     state.selectedId = wasSelected; render();
   }

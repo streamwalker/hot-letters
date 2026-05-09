@@ -1,28 +1,30 @@
 ## Goal
-Make script photos in **Script View** searchable and selectable by running OCR on each uploaded photo, so the user can highlight passages and copy them into the **Parse Script** field or any selected balloon.
+Fix "Tainted canvases may not be exported" when clicking **Export PNG** so a finished page exports cleanly with whatever balloon font the user chose (including Google Fonts).
 
-## Approach
-1. **OCR on upload** — When script photos are added (existing `Choose Photo(s)` flow), call Lovable AI (`google/gemini-2.5-flash`, multimodal) once per photo to transcribe the page to plain text. Cache the result on the photo entry so re-opening Script View is instant.
-   - Move the AI call server-side to a TanStack server route (`src/routes/api/ocr-script.ts`) so `LOVABLE_API_KEY` stays off the client. Replaces the existing browser-side Anthropic call for photo parsing.
-2. **Selectable text overlay in Script View** — Update `script-viewer` to render the photo with the transcribed text shown beneath it (or toggled via a new "Text" / "Image" switch in the script-viewer toolbar). The text pane uses normal `user-select: text` so the user can highlight any passage with the mouse.
-3. **Quick-action buttons on selection** — When the user highlights text inside the script-viewer text pane, show a small floating toolbar with two buttons:
-   - **→ Parse Script** — appends the selection to the `#script-input` textarea (and scrolls it into view).
-   - **→ Selected Balloon** — replaces the text of the currently-selected balloon with the selection (disabled when no balloon is selected). Uses the existing inspector update path so autosave fires.
-   Standard Cmd/Ctrl-C still works for any other paste target.
-4. **Persistence** — Store the OCR text alongside each script photo in the existing project payload (already saved to Lovable Cloud via the autosave bridge), so reopening the project keeps selectable text without re-running OCR.
+## Root cause
+In `src/letterer-app.js` the export handler (lines ~1880–1921) serializes the SVG overlay, loads it into an `<Image>`, and draws it onto a canvas. The overlay contains `<foreignObject>` divs that use fonts loaded from `fonts.googleapis.com` / `fonts.gstatic.com`. When the SVG image references external font resources, Chrome/Safari mark the destination canvas as tainted, blocking `toBlob`. The `crossOrigin = "anonymous"` on the blob image doesn't help — the taint comes from the external font fetch made while rasterizing the SVG.
 
-## Technical details
-- New server route: `src/routes/api/ocr-script.ts` (POST, accepts `{ imageBase64, mimeType }`, returns `{ text }`). Uses the AI Gateway provider helper per the TanStack AI guidance, model `google/gemini-2.5-flash`, system prompt: "Transcribe this comic-book script page exactly, preserving panel headings, character cues, and dialogue order." No tools, no streaming.
-- `src/letterer-app.js`:
-  - In the existing `file-script-img` change handler, after thumbnail creation, POST each image to `/api/ocr-script` and store the returned text on the photo entry (`photo.ocrText`).
-  - Extend `script-viewer` markup with a `<div id="script-viewer-text">` pane and a toolbar toggle button (Image / Text). Render `photo.ocrText` into the pane when active. Show a spinner placeholder while OCR is in flight.
-  - Add a `selectionchange` listener scoped to `#script-viewer-text` that positions a floating toolbar (`#script-selection-actions`) with the two buttons described above.
-  - Wire button 1 to append to `#script-input`. Wire button 2 to call the existing balloon-text update path used by the inspector textarea (so it fires the same `letterer:change` event the autosave already listens for).
-- `src/letterer-bridge.js`: include `photos` (with `ocrText`) in `serialize()` / `load()` if not already covered, so OCR text persists per project.
-- `src/letterer.css`: minimal styles for the new text pane, toggle button, and floating selection toolbar — using existing tokens (`--panel`, `--panel-2`, `--accent`, `--text`, `--text-dim`, `--border`).
-- No database schema changes; the existing `projects.data` JSONB already holds the full project payload.
+## Fix
+Make the exported SVG fully self-contained by inlining every font that is actually used by the balloons as a base64 `@font-face` rule inside a `<defs><style>` block of the cloned SVG. Once the SVG has no external network dependencies, it rasterizes without tainting the canvas.
+
+Steps inside `src/letterer-app.js` only:
+
+1. **Collect required font families** — When export starts, walk `state.balloons`, parse each `b.font` (CSS font stack like `"'Bangers', Impact, sans-serif"`) and pull out the first quoted family name. Build a unique set, e.g. `["Bangers", "Comic Neue", ...]`. Filter to the families that match Google Fonts already linked in `<head>` (Bangers, Bungee, Comic Neue 400/700, Kalam 400/700, Luckiest Guy, Permanent Marker). System fonts (Arial, Impact, Helvetica, Georgia, Courier New, Comic Sans MS) need no inlining.
+2. **Build a base64 @font-face stylesheet** — For each Google family in use:
+   - Fetch the Google Fonts CSS2 URL (e.g. `https://fonts.googleapis.com/css2?family=Bangers&display=swap`) with a `User-Agent`-style override unnecessary in browsers (the browser's UA already gets woff2). The response is CSS containing one or more `@font-face` rules whose `src: url(https://fonts.gstatic.com/...woff2)`.
+   - Parse out each `woff2` URL, `fetch()` it as `arrayBuffer`, base64-encode, and rewrite the `src` to `url(data:font/woff2;base64,...) format('woff2')`.
+   - Concatenate all rewritten `@font-face` rules into one CSS string. Cache the result in a module-level `Map<family, css>` so subsequent exports skip the network entirely.
+3. **Inject into the cloned SVG** — Before serializing, prepend a `<defs><style type="text/css">…</style></defs>` to `svgClone` containing the cached CSS. Also strip `contentEditable` attributes on the cloned foreignObject divs (cosmetic, not required for the fix).
+4. **Wait for fonts to be ready** — Call `await document.fonts.ready` before drawing so the rasterizer uses the loaded faces. Keep `crossOrigin` off the blob `Image` (data URLs / same-origin blobs need no CORS).
+5. **Graceful fallback** — Wrap the font-fetch step in try/catch. If a font fetch fails (offline, blocked), surface a clear toast: "Could not embed font X for export — using fallback" and continue with whatever inlining succeeded. The export will still succeed visually using the next font in the user's CSS stack.
+6. **Update the existing error toast** — On any remaining export failure, keep the existing modal but drop the misleading "Try a system font" tip in favor of a more accurate message ("Could not embed all fonts — try Save Project and reload, or pick a system font").
 
 ## Out of scope
-- Re-positioning text to overlay precisely on the photo (no bounding-box layout) — text appears in a separate selectable pane.
-- Editing the OCR text in place (it's read-only; user copies what they need).
-- Bulk re-OCR of previously uploaded photos that lack `ocrText` is handled lazily on first open of Script View.
+- Rewriting balloon rendering to use native SVG `<text>` instead of `<foreignObject>`.
+- Switching to a third-party library (`html-to-image`, `dom-to-image`, etc.).
+- Server-side PNG generation.
+
+## Verification
+- Load a page image, place a balloon using **Bangers**, click Export PNG → file downloads, opens cleanly with the right font.
+- Repeat with **Comic Neue Bold**, **Permanent Marker**, **Arial** (system) → all succeed.
+- Disable the network after the first export, change a balloon, click Export PNG again → cached font still embeds; no error.
