@@ -1,38 +1,44 @@
-## Level 10 Diagnostic Plan
+## Goal
+Make `scripts/check-authenticated-client-safety.mjs` more accurate so it doesn't miss server-only code that leaks via re-exports or non-`@/` path aliases.
 
-A full sweep across auth, data, AI endpoints, letterer features, build health, and security. I'll report findings and only fix issues you approve.
+## Changes
 
-### 1. Static / build health
-- Re-read `src/letterer-app.js`, `src/letterer-bridge.js`, `src/letterer-body.html`, `src/letterer.css` for stray references, broken IDs, or orphan handlers from recent OCR + export changes.
-- Grep for `TODO`, `FIXME`, `console.error`, and unreachable code paths.
-- Check Vite dev-server logs and runtime-errors for the most recent errors.
-- `lsp--code_intelligence` pass on `src/letterer-app.js`, `__root.tsx`, `_authenticated/index.tsx`, `login.tsx`, `api/ocr-script.ts`.
+### 1. Re-export detection
+Today the regex catches `import ... from "x"` and `import "x"`. Extend `extractStaticImports` to also follow:
+- `export * from "x"`
+- `export * as ns from "x"`
+- `export { a, b } from "x"`
+- `export { default as x } from "x"`
 
-### 2. Auth + cloud persistence
-- Re-read `src/routes/login.tsx`, `_authenticated.tsx`, `_authenticated/index.tsx` to confirm: signup → email verification → login → project loads from `projects` table; logout clears in-memory state.
-- Verify `projects` table RLS (already shown owner-scoped) and that the client uses the authed Supabase client only.
-- `supabase--linter` for any new database warnings.
+These are static and ship to the client, so they must be walked just like `import ... from`. Update the regex to a single pattern that matches `import|export` with an optional clause and a required `from "..."`, plus the existing side-effect `import "..."` form.
 
-### 3. Server function / API health
-- Re-read `src/routes/api/ocr-script.ts` for: input validation, LOVABLE_API_KEY usage, error surface, and response shape that `letterer-app.js` consumes (`text` field).
-- Grep for any other server functions / fetch targets and confirm their handlers exist.
+Also extend `checkNamedImports` to catch named **re-exports** of forbidden symbols, e.g. `export { createServerOnlyFn } from "..."` and `export { supabaseAdmin } from "@/integrations/supabase/client.server"`.
 
-### 4. Letterer feature smoke (browser)
-- Open the preview in the browser tool, sign in if needed (with your approval), and walk through:
-  a. Create a new project, upload a script photo → confirm OCR runs and "Text" view shows selectable text.
-  b. Highlight script text → "→ Parse Script" appends to parse field; "→ Selected Balloon" updates a placed balloon.
-  c. Place a Bangers balloon, click Export PNG → confirm download succeeds (font-embed fix).
-  d. Save Project → reload page → project reappears with OCR text intact.
-  e. Logout → confirm projects list clears.
-- Capture console + network during each step.
+### 2. TypeScript path alias resolution
+Replace the hard-coded `@/` branch with a generic resolver driven by `tsconfig.json` `compilerOptions.paths`:
+- Read and parse `tsconfig.json` once at startup (strip `//` and `/* */` comments — tsconfig allows them).
+- Build an alias table from `paths`, normalized against `baseUrl` (default: tsconfig dir).
+- For each specifier, try the longest matching alias prefix (TS semantics): a pattern `"@/*": ["./src/*"]` maps `@/foo/bar` → `<root>/src/foo/bar`. Patterns without `*` map exact specifiers. If multiple targets are listed, try each in order.
+- Fall back to relative resolution (`./`, `../`) as today.
+- Bare specifiers (npm packages) are still not walked, only checked by name pattern.
 
-### 5. Security pass
-- `security--run_security_scan` and `supabase--linter`.
-- Triage findings: report, propose fixes, do not auto-ignore.
+This means if someone later adds e.g. `"~/*": ["./src/*"]` or `"@server/*": ["./src/server/*"]`, the guard keeps working without code changes.
 
-### 6. Report
-- A consolidated diagnostic report listing: what passed, what failed, severity, and a proposed fix list. No code changes are made in this plan-mode pass; once you approve, I'll fix the failures in build mode in priority order.
+### 3. Resolution polish
+- When following a directory import, also try `index` lookups in the order TS uses (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`).
+- Skip non-source extensions (`.css`, `.json`, `.svg`, `.html`, `.raw`, `?raw` query suffixes) so we don't try to scan asset files. Strip Vite query suffixes (`?raw`, `?url`, `?worker`) before resolving.
+- De-duplicate via the existing `seen` set keyed by absolute resolved path.
 
-### Out of scope
-- Performance profiling, refactors unrelated to bugs found, redesigns, or new features.
-- Destructive actions in the live app (deleting other users' data, rotating keys).
+### 4. Self-test
+Add a tiny inline self-test gated by `--self-test` flag: synthesize two in-memory cases (one with a re-export of `client.server`, one with an aliased import via a non-`@/` alias) and assert the checker reports them. This avoids adding a separate test runner while giving CI a way to catch regressions in the guard itself.
+
+Wire it into the existing CI step as a second invocation: `node scripts/check-authenticated-client-safety.mjs --self-test` before the real scan.
+
+## Out of scope
+- Following imports into `node_modules` (still treated as opaque; only name-pattern checks apply).
+- Parsing TypeScript with a real AST — the regex approach is good enough for ESM static syntax and keeps the script dependency-free.
+- Changing the entry file or expanding the guard to other routes (can be a follow-up).
+
+## Files touched
+- `scripts/check-authenticated-client-safety.mjs` — extended resolver + re-export handling + self-test.
+- `.github/workflows/ci.yml` — add `--self-test` invocation alongside the existing check step.
