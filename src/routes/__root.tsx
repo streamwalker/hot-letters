@@ -8,10 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 
-import { useEffect } from "react";
 import appCss from "../styles.css?url";
-import { installErrorTracker } from "@/lib/error-tracker";
-import { ErrorTrackerPanel } from "@/components/ErrorTrackerPanel";
 
 function NotFoundComponent() {
   return (
@@ -75,18 +72,18 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Pixel Perfect Replica creates an exact copy of a web page, preserving project data and allowing script interaction." },
+      { title: "Hot Letters - Celsius Powered Comic Book Letterer" },
+      { name: "description", content: "Hot Letters creates an exact copy of a web page, preserving project data and allowing script interaction." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Pixel Perfect Replica creates an exact copy of a web page, preserving project data and allowing script interaction." },
+      { property: "og:title", content: "Hot Letters - Celsius Powered Comic Book Letterer" },
+      { property: "og:description", content: "Hot Letters creates an exact copy of a web page, preserving project data and allowing script interaction." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
-      { name: "twitter:title", content: "Lovable App" },
-      { name: "twitter:description", content: "Pixel Perfect Replica creates an exact copy of a web page, preserving project data and allowing script interaction." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e4149b60-6928-458e-9150-13d7f3edaeab/id-preview-ae9b21cd--2873a7c2-7dd5-4f72-95bf-6376bf2c18a0.lovable.app-1778313823392.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/e4149b60-6928-458e-9150-13d7f3edaeab/id-preview-ae9b21cd--2873a7c2-7dd5-4f72-95bf-6376bf2c18a0.lovable.app-1778313823392.png" },
+      { name: "twitter:title", content: "Hot Letters - Celsius Powered Comic Book Letterer" },
+      { name: "twitter:description", content: "Hot Letters creates an exact copy of a web page, preserving project data and allowing script interaction." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/QZAeNqy6yxOqJTh5qCxXoi9l0uO2/social-images/social-1778317238997-Image_5-9-26_at_1.20_AM.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/QZAeNqy6yxOqJTh5qCxXoi9l0uO2/social-images/social-1778317238997-Image_5-9-26_at_1.20_AM.webp" },
     ],
     links: [
       {
@@ -118,14 +115,9 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  useEffect(() => {
-    installErrorTracker();
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
-      <ErrorTrackerPanel />
     </QueryClientProvider>
   );
 }
