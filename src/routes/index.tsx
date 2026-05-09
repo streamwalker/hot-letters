@@ -1,9 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import "../letterer.css";
-// @ts-expect-error raw import
 import bodyHtml from "../letterer-body.html?raw";
-// @ts-expect-error raw import
 import appJs from "../letterer-app.js?raw";
 
 export const Route = createFileRoute("/")({
