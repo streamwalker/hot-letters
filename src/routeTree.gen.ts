@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as ApiOcrScriptRouteImport } from './routes/api/ocr-script'
@@ -17,6 +18,11 @@ import { Route as ApiOcrScriptRouteImport } from './routes/api/ocr-script'
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiagnosticsRoute = DiagnosticsRouteImport.update({
+  id: '/diagnostics',
+  path: '/diagnostics',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
@@ -36,10 +42,12 @@ const ApiOcrScriptRoute = ApiOcrScriptRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
 }
 export interface FileRoutesByTo {
+  '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/': typeof AuthenticatedIndexRoute
@@ -47,18 +55,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/api/ocr-script'
+  fullPaths: '/' | '/diagnostics' | '/login' | '/api/ocr-script'
   fileRoutesByTo: FileRoutesByTo
-  to: '/login' | '/api/ocr-script' | '/'
+  to: '/diagnostics' | '/login' | '/api/ocr-script' | '/'
   id:
     | '__root__'
     | '/_authenticated'
+    | '/diagnostics'
     | '/login'
     | '/api/ocr-script'
     | '/_authenticated/'
@@ -66,6 +76,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  DiagnosticsRoute: typeof DiagnosticsRoute
   LoginRoute: typeof LoginRoute
   ApiOcrScriptRoute: typeof ApiOcrScriptRoute
 }
@@ -77,6 +88,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diagnostics': {
+      id: '/diagnostics'
+      path: '/diagnostics'
+      fullPath: '/diagnostics'
+      preLoaderRoute: typeof DiagnosticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -117,6 +135,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  DiagnosticsRoute: DiagnosticsRoute,
   LoginRoute: LoginRoute,
   ApiOcrScriptRoute: ApiOcrScriptRoute,
 }
