@@ -69,13 +69,23 @@ function AuthLayout() {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
+      console.log(
+        `[auth/layout] initial getSession -> ${
+          data.session ? `ready user:${data.session.user.id}` : "no session, redirecting /login"
+        }`,
+      );
       if (data.session) {
         setReady(true);
       } else {
         window.location.assign("/login");
       }
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log(
+        `[auth/layout] onAuthStateChange event=${event} session=${
+          session ? `user:${session.user.id}` : "none"
+        }`,
+      );
       if (!session) window.location.assign("/login");
     });
     return () => {
