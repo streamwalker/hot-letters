@@ -1,4 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { createIsomorphicFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -6,18 +7,13 @@ const SUPABASE_PROJECT_REF = (import.meta as { env?: Record<string, string> }).e
   ?.VITE_SUPABASE_PROJECT_ID;
 
 /**
- * Server-side: check for the Supabase auth cookie. If it's missing we
- * fail closed and bounce to /login instead of letting SSR render the
- * protected shell. We can't decode/verify the JWT without bundling the
- * service-role key into SSR, so the client still re-validates the session.
- *
- * Client-side: do the real getSession() check the same way as before.
+ * Isomorphic auth gate.
+ * - Server: check for a Supabase auth cookie. If absent, redirect to /login.
+ * - Client: check supabase.auth.getSession() (localStorage-backed).
  */
-async function checkAuth(location: { href: string }) {
-  if (typeof window === "undefined") {
-    // Lazy import — these utilities only resolve on the server bundle.
+const checkAuth = createIsomorphicFn()
+  .server(async (href: string) => {
     const { getCookie } = await import("@tanstack/react-start/server");
-
     const cookieNames = [
       SUPABASE_PROJECT_REF ? `sb-${SUPABASE_PROJECT_REF}-auth-token` : null,
       "sb-access-token",
@@ -33,26 +29,19 @@ async function checkAuth(location: { href: string }) {
     });
 
     if (!hasAuthCookie) {
-      throw redirect({
-        to: "/login",
-        search: { redirect: location.href },
-      });
+      throw redirect({ to: "/login", search: { redirect: href } });
     }
-    return;
-  }
-
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) {
-    throw redirect({
-      to: "/login",
-      search: { redirect: location.href },
-    });
-  }
-}
+  })
+  .client(async (href: string) => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      throw redirect({ to: "/login", search: { redirect: href } });
+    }
+  });
 
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: async ({ location }) => {
-    await checkAuth({ href: location.href });
+    await checkAuth(location.href);
   },
   component: AuthLayout,
 });
