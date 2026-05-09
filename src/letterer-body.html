@@ -1,0 +1,255 @@
+<header>
+  <span class="title">COMIC BOOK LETTERER<span class="version-tag">v002</span></span>
+  <label class="btn" for="file-image">Load Page Image</label>
+  <input type="file" id="file-image" accept="image/*">
+  <button id="btn-add-balloon">+ Add Balloon</button>
+  <button id="btn-side-by-side" title="View script photo and comic page side by side">Script View</button>
+  <button id="btn-reading-order" title="Show numbered reading order and trail (Klein-style)">Reading Order</button>
+  <span class="spacer"></span>
+  <button id="btn-zoom-out">−</button>
+  <span id="zoom-label" style="font-size:11px;color:var(--text-dim);min-width:40px;text-align:center;">100%</span>
+  <button id="btn-zoom-in">+</button>
+  <button id="btn-export-png">Export PNG</button>
+  <button id="btn-save">Save Project</button>
+  <label class="btn" for="file-load">Load Project</label>
+  <input type="file" id="file-load" accept=".json">
+  <button id="btn-undo" title="Undo (⌘Z / Ctrl+Z)">↶</button>
+  <button id="btn-redo" title="Redo (⌘⇧Z / Ctrl+Y)">↷</button>
+  <button id="btn-mobile-toggle" title="Toggle mobile / iOS layout">Mobile</button>
+</header>
+
+<main>
+  <!-- LEFT SIDEBAR: SCRIPT -->
+  <aside class="left">
+    <div class="section">
+      <h3>Upload Script Photo(s)</h3>
+      <label class="parse-btn" for="file-script-img" style="display:block;text-align:center;background:var(--accent-2);color:#fff;cursor:pointer;padding:8px;border-radius:4px;font-weight:600;">Choose Photo(s)</label>
+      <input type="file" id="file-script-img" accept="image/*" multiple style="display:none;">
+      <div id="script-img-thumbs" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
+      <button class="parse-btn" id="btn-parse-photo" style="display:none;background:var(--accent);color:#1a1d23;margin-top:6px;">Analyze Photo(s) with AI</button>
+      <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">Upload typed, scanned, or hand-photographed script pages. Claude reads them in proper order.</p>
+    </div>
+
+    <div class="section">
+      <h3>Or Paste Script Text</h3>
+      <textarea class="script-input" id="script-input" placeholder="PANEL 1 - Wide shot of the rooftop.
+SARA:
+It never gets quieter than this.
+SARA (THOUGHT):
+Something is wrong.
+
+PANEL 2 - Jack appears.
+JACK (OFF):
+Sara! Get down!
+SFX:
+KRAKKK"></textarea>
+      <div style="display:flex;gap:4px;margin-top:6px;">
+        <button class="parse-btn" id="btn-parse" style="flex:1;">Parse Script</button>
+        <button class="parse-btn" id="btn-parse-ai" style="flex:1;background:var(--accent-2);color:#fff;">AI Parse</button>
+      </div>
+      <a href="#" id="link-set-key" style="display:block;font-size:10px;color:var(--text-dim);margin-top:6px;text-decoration:none;">Set Anthropic API key… (for AI Parse / Photo)</a>
+    </div>
+    <div class="section">
+      <h3>Dialogue (drag onto page)</h3>
+      <div class="chip-list" id="chip-list">
+        <div style="color:var(--text-dim);font-size:11px;font-style:italic;">No script parsed yet.</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- WORKSPACE: script viewer (optional, left) + canvas (always, right) -->
+  <section id="workspace">
+    <!-- Script viewer pane (hidden unless Script View toggle is on) -->
+    <div id="script-viewer">
+      <div id="script-viewer-toolbar">
+        <button id="btn-script-prev" title="Previous script page">‹</button>
+        <span id="script-page-indicator" style="font-size:11px;color:var(--text-dim);min-width:50px;text-align:center;">—</span>
+        <button id="btn-script-next" title="Next script page">›</button>
+        <span style="flex:1"></span>
+        <button id="btn-script-zoom-out" title="Zoom out">−</button>
+        <span id="script-zoom-label" style="font-size:11px;color:var(--text-dim);min-width:42px;text-align:center;">100%</span>
+        <button id="btn-script-zoom-in" title="Zoom in">+</button>
+        <button id="btn-script-fit" title="Reset to 100%">Fit</button>
+        <button id="btn-script-close" title="Close script viewer">×</button>
+      </div>
+      <div id="script-viewer-scroll">
+        <img id="script-viewer-img" alt="" style="display:none;">
+        <div id="script-viewer-empty">No script photos uploaded yet.<br>Use the Script panel on the left to upload photos of your script pages.</div>
+      </div>
+    </div>
+    <div id="canvas-divider" title="Drag to resize"></div>
+    <!-- Comic page canvas pane -->
+    <div id="canvas-wrap">
+      <div id="placeholder">
+        <p style="font-size:18px;color:var(--text);margin-bottom:8px;">Comic Book Letterer — MVP</p>
+        <p>1. Click <kbd>Load Page Image</kbd> to load comic art<br>
+        2. Provide a script by one of three methods:<br>
+        &nbsp;&nbsp;&nbsp;• Upload <kbd>Photo(s)</kbd> of script pages → AI reads and extracts dialogue<br>
+        &nbsp;&nbsp;&nbsp;• Paste script text → click <kbd>Parse Script</kbd> (regex) or <kbd>AI Parse</kbd> (any format)<br>
+        3. Click <kbd>Script View</kbd> in the toolbar to see your script photo and comic page side by side<br>
+        4. Drag dialogue chips onto the page, or click <kbd>+ Add Balloon</kbd> to place an empty balloon<br>
+        5. Drag balloons to move, drag corners to resize, drag the blue tail tip to point at a character<br>
+        6. Click a balloon to edit its text, font, size, and colors in the right inspector</p>
+      </div>
+      <div id="canvas-stage" style="display:none;">
+        <img id="page-img" alt="">
+        <svg id="overlay" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div id="drop-hint">Drop dialogue here</div>
+    </div>
+  </section>
+
+  <!-- RIGHT SIDEBAR: INSPECTOR -->
+  <aside class="right">
+    <div id="inspector-empty" class="empty-inspector">Select a balloon to edit its properties.</div>
+
+    <div id="inspector" style="display:none;">
+      <div class="section">
+        <button id="btn-auto-format" style="background:var(--accent);color:#1a1d23;width:100%;font-weight:700;font-size:13px;padding:9px;border:0;border-radius:5px;cursor:pointer;">Auto Format Balloon</button>
+        <button id="btn-auto-format-all" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;margin-top:6px;font-size:11px;padding:6px;border-radius:4px;cursor:pointer;">Auto Format All Balloons</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">Capitalizes the dialogue, fixes typography (em-dashes, ellipses), balances line breaks for a clean lens-shape, and resizes the balloon to fit snugly — the conventions a professional letterer applies by hand.</p>
+      </div>
+
+      <div class="section">
+        <button id="btn-smart-place" style="background:var(--accent-2);color:#fff;width:100%;font-weight:700;font-size:13px;padding:9px;border:0;border-radius:5px;cursor:pointer;">Smart Place This Balloon</button>
+        <button id="btn-smart-place-all" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;margin-top:6px;font-size:11px;padding:6px;border-radius:4px;cursor:pointer;">Smart Place All Balloons</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">AI analyzes the comic art and repositions balloons over negative space — sky, plain backgrounds, panel gaps — avoiding faces, bodies, hands, power signatures, and effects. Requires an Anthropic API key and a loaded page image.</p>
+      </div>
+
+      <div class="section">
+        <h3>Style Preset</h3>
+        <div class="row" style="grid-template-columns:1fr 1fr 1fr;gap:4px;">
+          <button class="style-preset" data-preset="speech">Speech</button>
+          <button class="style-preset" data-preset="thought">Thought</button>
+          <button class="style-preset" data-preset="shout">Shout</button>
+          <button class="style-preset" data-preset="whisper">Whisper</button>
+          <button class="style-preset" data-preset="weak" title="Diminished / dying voice (Blambot)">Weak</button>
+          <button class="style-preset" data-preset="singing" title="Singing — wraps text in music notes (Blambot)">Singing ♪</button>
+          <button class="style-preset" data-preset="translated" title="Foreign-language translation (Blambot &lt;...&gt; convention)">Translated</button>
+          <button class="style-preset" data-preset="caption">Caption</button>
+          <button class="style-preset" data-preset="sfx">SFX</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Text</h3>
+        <div class="field">
+          <label>Content (also editable on canvas)</label>
+          <textarea id="i-text" class="script-input" style="min-height:60px;"></textarea>
+        </div>
+        <div class="field">
+          <label>Font</label>
+          <select id="i-font">
+            <optgroup label="Comic / Display">
+              <option value="'Comic Neue', Comic Sans MS, sans-serif">Comic Neue</option>
+              <option value="'Bangers', Impact, sans-serif">Bangers</option>
+              <option value="'Bungee', Impact, sans-serif">Bungee</option>
+              <option value="'Luckiest Guy', Impact, sans-serif">Luckiest Guy</option>
+              <option value="'Permanent Marker', cursive">Permanent Marker</option>
+              <option value="'Kalam', cursive">Kalam</option>
+            </optgroup>
+            <optgroup label="System">
+              <option value="'Comic Sans MS', sans-serif">Comic Sans MS</option>
+              <option value="Impact, sans-serif">Impact</option>
+              <option value="Arial, sans-serif">Arial</option>
+              <option value="Helvetica, sans-serif">Helvetica</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="Courier New, monospace">Courier New</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="row">
+          <div class="field"><label>Size</label><input type="number" id="i-size" min="6" max="200" step="1"></div>
+          <div class="field"><label>Weight</label>
+            <select id="i-weight">
+              <option value="400">Regular</option>
+              <option value="700">Bold</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Style</label>
+            <select id="i-style-italic">
+              <option value="normal">Normal</option>
+              <option value="italic">Italic</option>
+            </select>
+          </div>
+          <div class="field"><label>Letter spacing</label><input type="number" id="i-tracking" step="0.5"></div>
+        </div>
+        <div class="field"><label>Text color</label><input type="color" id="i-text-color"></div>
+      </div>
+
+      <div class="section">
+        <h3>Balloon</h3>
+        <div class="row">
+          <div class="field"><label>Fill</label><input type="color" id="i-fill"></div>
+          <div class="field"><label>Stroke</label><input type="color" id="i-stroke"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Stroke width</label><input type="number" id="i-stroke-w" min="0" max="20" step="0.5"></div>
+          <div class="field"><label>Shape</label>
+            <select id="i-shape">
+              <option value="ellipse">Ellipse</option>
+              <option value="rect">Rounded Box</option>
+              <option value="cloud">Cloud (thought)</option>
+              <option value="burst">Burst (shout)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3>Tail</h3>
+        <div class="field-row">
+          <input type="checkbox" id="i-tail-on">
+          <label style="margin:0;">Show tail</label>
+        </div>
+        <div class="row">
+          <div class="field"><label>Width</label><input type="number" id="i-tail-w" min="2" max="80" step="1"></div>
+          <div class="field"><label>Style</label>
+            <select id="i-tail-style">
+              <option value="point">Point</option>
+              <option value="bubbles">Bubbles (thought)</option>
+            </select>
+          </div>
+        </div>
+        <p style="font-size:10px;color:var(--text-dim);margin:4px 0 0;">Drag the blue dot on the canvas to point the tail at the speaker.</p>
+      </div>
+
+      <div class="section">
+        <h3>Connect / Split</h3>
+        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;">Split into Two Balloons</button>
+        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;">Unlink Balloons</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">Split creates a "double bubble" — two joined balloons for the same speaker, often used to show a beat or pause between two thoughts.</p>
+      </div>
+
+      <div class="section">
+        <button class="danger" id="i-delete">Delete Balloon</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<div id="sheet-backdrop"></div>
+
+<nav id="mobile-tabbar">
+  <button data-tab="script"><span class="tab-icon">≡</span><span>Script</span></button>
+  <button data-tab="canvas" class="active"><span class="tab-icon">▦</span><span>Canvas</span></button>
+  <button data-tab="inspector"><span class="tab-icon">✎</span><span>Edit</span></button>
+  <button data-tab="format"><span class="tab-icon">✦</span><span>Format</span></button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<div id="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+  <div style="background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:20px;max-width:520px;width:90%;box-shadow:0 8px 30px rgba(0,0,0,0.6);">
+    <div id="modal-title" style="font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text);"></div>
+    <div id="modal-body" style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5;white-space:pre-wrap;max-height:300px;overflow-y:auto;"></div>
+    <input id="modal-input" type="text" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;font-size:12px;margin-bottom:14px;display:none;font-family:ui-monospace,Menlo,monospace;">
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button id="modal-cancel" style="background:var(--panel-2);border:1px solid var(--border);color:var(--text);padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;">Cancel</button>
+      <button id="modal-ok" style="background:var(--accent);border:0;color:#1a1d23;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:12px;font-weight:600;">OK</button>
+    </div>
+  </div>
+</div>
+
