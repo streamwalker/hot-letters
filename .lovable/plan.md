@@ -1,43 +1,28 @@
-# Plan: Recreate Comic Book Letterer (v002)
-
-The upload is a 2,769-line standalone HTML app: dark 3-column UI (script tools / canvas / inspector), SVG-based speech balloon editor with drag/resize/tail handles, script parsing (regex + Anthropic AI + photo OCR), zoom, undo/redo, save/load JSON project, PNG export, and a mobile layout toggle. ~70 imperative DOM/SVG functions wired with `addEventListener`.
+## Goal
+Make script photos in **Script View** searchable and selectable by running OCR on each uploaded photo, so the user can highlight passages and copy them into the **Parse Script** field or any selected balloon.
 
 ## Approach
-
-Rewriting 2.7k lines of imperative SVG/pointer code into idiomatic React would risk behavior drift. To recreate it **exactly**, port the original HTML/CSS/JS verbatim into a single TanStack route, executed inside a `useEffect` after the markup mounts. This keeps pixel- and behavior-parity with the source while still living inside the app.
-
-## Steps
-
-1. **Home route (`src/routes/index.tsx`)**
-   - Replace the placeholder with a `Letterer` component.
-   - Render the exact markup from the `<body>` of the upload (header toolbar, left aside, center `#canvas-wrap` with `#overlay` SVG, right inspector, mobile bottom-sheet handle).
-   - In `useEffect`, inject the original `<script>` block once via a `<script>` tag append (so `$()` lookups, global `state`, drag handlers, and `window`/`document` listeners run unchanged).
-   - Set `<head>` via TanStack `head()`: title `Comic Book Letterer — v002`, viewport with `viewport-fit=cover, user-scalable=no`, theme-color, Apple mobile meta tags, Google Fonts preconnect + Bangers/Bungee/Comic Neue/Kalam/Luckiest Guy/Permanent Marker stylesheet link.
-
-2. **Styles**
-   - Copy the original `<style>` block verbatim into `src/letterer.css` and import it from the route. Keep the dark token palette (`--bg #1a1d23`, `--accent #f5a623`, etc.) scoped to this page; do not touch global `src/styles.css`.
-
-3. **Script behavior preserved as-is**
-   - Balloon model, undo/redo snapshots, zoom in/out/fit, drag-from-chip placement, pointer-based move/resize/tail editing, SVG path generators (ellipse / cloud / burst / tail / unified), reading-order overlay, selection chrome, inspector two-way binding, font/color controls.
-   - Script parsing: regex (`Parse Script`), Anthropic AI parse (`AI Parse`), and photo OCR (`Choose Photo(s)` → AI). API key stored in `localStorage` via the original `Set Anthropic API key…` link, exactly as in the source.
-   - Save/Load Project (JSON file), Export PNG (rasterize current view), Mobile toggle.
-
-4. **Asset/runtime notes**
-   - Fonts loaded from Google Fonts (same `<link>` as source).
-   - No backend needed; Anthropic calls go directly from the browser using the user-supplied key, matching original behavior.
-   - Pure client component — no SSR data, no server functions.
+1. **OCR on upload** — When script photos are added (existing `Choose Photo(s)` flow), call Lovable AI (`google/gemini-2.5-flash`, multimodal) once per photo to transcribe the page to plain text. Cache the result on the photo entry so re-opening Script View is instant.
+   - Move the AI call server-side to a TanStack server route (`src/routes/api/ocr-script.ts`) so `LOVABLE_API_KEY` stays off the client. Replaces the existing browser-side Anthropic call for photo parsing.
+2. **Selectable text overlay in Script View** — Update `script-viewer` to render the photo with the transcribed text shown beneath it (or toggled via a new "Text" / "Image" switch in the script-viewer toolbar). The text pane uses normal `user-select: text` so the user can highlight any passage with the mouse.
+3. **Quick-action buttons on selection** — When the user highlights text inside the script-viewer text pane, show a small floating toolbar with two buttons:
+   - **→ Parse Script** — appends the selection to the `#script-input` textarea (and scrolls it into view).
+   - **→ Selected Balloon** — replaces the text of the currently-selected balloon with the selection (disabled when no balloon is selected). Uses the existing inspector update path so autosave fires.
+   Standard Cmd/Ctrl-C still works for any other paste target.
+4. **Persistence** — Store the OCR text alongside each script photo in the existing project payload (already saved to Lovable Cloud via the autosave bridge), so reopening the project keeps selectable text without re-running OCR.
 
 ## Technical details
-
-- File layout:
-  - `src/routes/index.tsx` — TanStack route, mounts markup + injects script in `useEffect`, sets `head()` meta/links.
-  - `src/letterer.css` — verbatim copy of the source `<style>` contents.
-  - `src/letterer-app.ts?raw` — verbatim copy of the source `<script>` contents, imported as a raw string and appended as a `<script>` element on mount (cleaned up on unmount to avoid duplicate listeners during HMR).
-- `useEffect` guards against double-execution in dev (ref flag) so the global `state` object isn't re-initialized twice.
-- Remove the placeholder `<img data-lovable-blank-page-placeholder>` from `index.tsx`.
-- No changes to `__root.tsx`, router, or design tokens.
+- New server route: `src/routes/api/ocr-script.ts` (POST, accepts `{ imageBase64, mimeType }`, returns `{ text }`). Uses the AI Gateway provider helper per the TanStack AI guidance, model `google/gemini-2.5-flash`, system prompt: "Transcribe this comic-book script page exactly, preserving panel headings, character cues, and dialogue order." No tools, no streaming.
+- `src/letterer-app.js`:
+  - In the existing `file-script-img` change handler, after thumbnail creation, POST each image to `/api/ocr-script` and store the returned text on the photo entry (`photo.ocrText`).
+  - Extend `script-viewer` markup with a `<div id="script-viewer-text">` pane and a toolbar toggle button (Image / Text). Render `photo.ocrText` into the pane when active. Show a spinner placeholder while OCR is in flight.
+  - Add a `selectionchange` listener scoped to `#script-viewer-text` that positions a floating toolbar (`#script-selection-actions`) with the two buttons described above.
+  - Wire button 1 to append to `#script-input`. Wire button 2 to call the existing balloon-text update path used by the inspector textarea (so it fires the same `letterer:change` event the autosave already listens for).
+- `src/letterer-bridge.js`: include `photos` (with `ocrText`) in `serialize()` / `load()` if not already covered, so OCR text persists per project.
+- `src/letterer.css`: minimal styles for the new text pane, toggle button, and floating selection toolbar — using existing tokens (`--panel`, `--panel-2`, `--accent`, `--text`, `--text-dim`, `--border`).
+- No database schema changes; the existing `projects.data` JSONB already holds the full project payload.
 
 ## Out of scope
-- No refactor into idiomatic React components.
-- No backend proxy for the Anthropic API (user-provided key in browser, same as source).
-- No new features, theming, or responsive changes beyond what the source already implements.
+- Re-positioning text to overlay precisely on the photo (no bounding-box layout) — text appears in a separate selectable pane.
+- Editing the OCR text in place (it's read-only; user copies what they need).
+- Bulk re-OCR of previously uploaded photos that lack `ocrText` is handled lazily on first open of Script View.
