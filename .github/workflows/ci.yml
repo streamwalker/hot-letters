@@ -31,6 +31,9 @@ jobs:
       - name: Lint
         run: bun run lint
 
+      - name: Auth client-safety guard (self-test)
+        run: node scripts/check-authenticated-client-safety.mjs --self-test
+
       - name: Auth client-safety guard
         run: bun run check:auth-client-safe
 
