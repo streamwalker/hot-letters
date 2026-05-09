@@ -8,7 +8,10 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 
+import { useEffect } from "react";
 import appCss from "../styles.css?url";
+import { installErrorTracker } from "@/lib/error-tracker";
+import { ErrorTrackerPanel } from "@/components/ErrorTrackerPanel";
 
 function NotFoundComponent() {
   return (
@@ -115,9 +118,14 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    installErrorTracker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <ErrorTrackerPanel />
     </QueryClientProvider>
   );
 }
