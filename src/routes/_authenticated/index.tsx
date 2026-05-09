@@ -21,7 +21,7 @@ export const Route = createFileRoute("/_authenticated/")({
         content: "black-translucent",
       },
       { name: "theme-color", content: "#1a1d23" },
-      { title: "Comic Book Letterer — v002" },
+      { title: "Hot Letters - powered by Celsius" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
