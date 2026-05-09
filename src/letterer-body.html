@@ -65,6 +65,8 @@ KRAKKK"></textarea>
         <button id="btn-script-prev" title="Previous script page">‹</button>
         <span id="script-page-indicator" style="font-size:11px;color:var(--text-dim);min-width:50px;text-align:center;">—</span>
         <button id="btn-script-next" title="Next script page">›</button>
+        <button id="btn-script-mode-image" class="active" title="Show photo">Image</button>
+        <button id="btn-script-mode-text" title="Show selectable transcribed text">Text</button>
         <span style="flex:1"></span>
         <button id="btn-script-zoom-out" title="Zoom out">−</button>
         <span id="script-zoom-label" style="font-size:11px;color:var(--text-dim);min-width:42px;text-align:center;">100%</span>
@@ -74,7 +76,12 @@ KRAKKK"></textarea>
       </div>
       <div id="script-viewer-scroll">
         <img id="script-viewer-img" alt="" style="display:none;">
+        <div id="script-viewer-text" style="display:none;"></div>
         <div id="script-viewer-empty">No script photos uploaded yet.<br>Use the Script panel on the left to upload photos of your script pages.</div>
+      </div>
+      <div id="script-selection-actions" style="display:none;">
+        <button id="btn-selection-to-parse" title="Append selected text to the Parse Script field">→ Parse Script</button>
+        <button id="btn-selection-to-balloon" title="Replace the selected balloon's text with the selection" disabled>→ Selected Balloon</button>
       </div>
     </div>
     <div id="canvas-divider" title="Drag to resize"></div>

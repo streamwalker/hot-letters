@@ -2096,3 +2096,171 @@ window.addEventListener("keydown", (e) => {
     e.preventDefault();
   }
 });
+
+// ============== SCRIPT VIEWER: OCR + SELECTABLE TEXT ==============
+(function () {
+  state.scriptViewerMode = "image"; // "image" | "text"
+
+  // --- OCR: call /api/ocr-script for any photo lacking ocrText ---
+  async function ocrPhoto(ph) {
+    if (ph.ocrText || ph._ocrLoading) return;
+    ph._ocrLoading = true;
+    refreshScriptViewerText();
+    try {
+      const base64 = (ph.dataUrl || "").split(",")[1] || "";
+      const resp = await fetch("/api/ocr-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: ph.mediaType }),
+      });
+      if (!resp.ok) {
+        const t = await resp.text();
+        ph.ocrError = "OCR failed: " + t.slice(0, 200);
+      } else {
+        const data = await resp.json();
+        ph.ocrText = (data && data.text) || "";
+        ph.ocrError = null;
+      }
+    } catch (err) {
+      ph.ocrError = "OCR failed: " + (err && err.message ? err.message : String(err));
+    } finally {
+      ph._ocrLoading = false;
+      refreshScriptViewerText();
+      window.dispatchEvent(new CustomEvent("letterer:change"));
+    }
+  }
+
+  // Watch for new photos uploaded — kick off OCR for any without text.
+  const origRender = renderScriptThumbs;
+  // eslint-disable-next-line no-global-assign
+  renderScriptThumbs = function () {
+    origRender.apply(this, arguments);
+    if (typeof scriptPhotos !== "undefined") {
+      scriptPhotos.forEach((ph) => { if (!ph.ocrText && !ph._ocrLoading && !ph.ocrError) ocrPhoto(ph); });
+    }
+  };
+
+  // --- Mode toggle (Image / Text) ---
+  function setScriptMode(mode) {
+    state.scriptViewerMode = mode;
+    const img = $("script-viewer-img");
+    const txt = $("script-viewer-text");
+    const empty = $("script-viewer-empty");
+    $("btn-script-mode-image").classList.toggle("active", mode === "image");
+    $("btn-script-mode-text").classList.toggle("active", mode === "text");
+    if (!scriptPhotos.length) {
+      img.style.display = "none";
+      txt.style.display = "none";
+      empty.style.display = "block";
+      return;
+    }
+    empty.style.display = "none";
+    if (mode === "text") {
+      img.style.display = "none";
+      txt.style.display = "block";
+      refreshScriptViewerText();
+    } else {
+      txt.style.display = "none";
+      img.style.display = "block";
+      applyScriptZoom();
+    }
+  }
+  function refreshScriptViewerText() {
+    const txt = $("script-viewer-text");
+    if (!txt) return;
+    const ph = scriptPhotos[state.scriptViewerIndex];
+    if (!ph) { txt.textContent = ""; return; }
+    if (ph._ocrLoading) {
+      txt.classList.add("loading");
+      txt.textContent = "Transcribing this page with AI…";
+    } else if (ph.ocrError) {
+      txt.classList.add("loading");
+      txt.textContent = ph.ocrError + "\n\n(Click Image to view the photo.)";
+    } else {
+      txt.classList.remove("loading");
+      txt.textContent = ph.ocrText || "(No text transcribed yet.)";
+    }
+  }
+  $("btn-script-mode-image").addEventListener("click", () => setScriptMode("image"));
+  $("btn-script-mode-text").addEventListener("click", () => {
+    setScriptMode("text");
+    const ph = scriptPhotos[state.scriptViewerIndex];
+    if (ph && !ph.ocrText && !ph._ocrLoading) ocrPhoto(ph);
+  });
+
+  // Refresh text pane when navigating pages.
+  ["btn-script-prev", "btn-script-next"].forEach((id) => {
+    $(id).addEventListener("click", () => {
+      if (state.scriptViewerMode === "text") setScriptMode("text");
+    });
+  });
+
+  // --- Selection action toolbar ---
+  const actions = $("script-selection-actions");
+  const btnToParse = $("btn-selection-to-parse");
+  const btnToBalloon = $("btn-selection-to-balloon");
+
+  function getSelectionInTextPane() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+    const txt = $("script-viewer-text");
+    const range = sel.getRangeAt(0);
+    if (!txt.contains(range.commonAncestorContainer)) return null;
+    const text = sel.toString();
+    if (!text.trim()) return null;
+    return { text, rect: range.getBoundingClientRect() };
+  }
+  function updateSelectionToolbar() {
+    const info = getSelectionInTextPane();
+    if (!info) { actions.style.display = "none"; return; }
+    const sv = $("script-viewer").getBoundingClientRect();
+    actions.style.display = "flex";
+    // Position above the selection, clamped within the viewer.
+    let top = info.rect.top - sv.top - actions.offsetHeight - 6;
+    if (top < 4) top = info.rect.bottom - sv.top + 6;
+    let left = info.rect.left - sv.left + info.rect.width / 2 - actions.offsetWidth / 2;
+    left = Math.max(6, Math.min(sv.width - actions.offsetWidth - 6, left));
+    actions.style.top = top + "px";
+    actions.style.left = left + "px";
+    btnToBalloon.disabled = !state.selectedId;
+  }
+  document.addEventListener("selectionchange", () => {
+    if (state.scriptViewerMode !== "text") { actions.style.display = "none"; return; }
+    // Defer to next frame so getBoundingClientRect is current.
+    requestAnimationFrame(updateSelectionToolbar);
+  });
+
+  btnToParse.addEventListener("mousedown", (e) => e.preventDefault());
+  btnToParse.addEventListener("click", () => {
+    const info = getSelectionInTextPane();
+    if (!info) return;
+    const ta = $("script-input");
+    const cur = ta.value;
+    ta.value = (cur && !cur.endsWith("\n") ? cur + "\n" : cur) + info.text + "\n";
+    ta.focus();
+    ta.scrollTop = ta.scrollHeight;
+    toast("Added selection to Parse Script");
+    window.dispatchEvent(new CustomEvent("letterer:change"));
+  });
+
+  btnToBalloon.addEventListener("mousedown", (e) => e.preventDefault());
+  btnToBalloon.addEventListener("click", () => {
+    const info = getSelectionInTextPane();
+    if (!info) return;
+    const b = getSelected();
+    if (!b) { toast("Select a balloon first"); return; }
+    b.text = info.text;
+    $("i-text").value = info.text;
+    render();
+    toast("Updated balloon text");
+    window.dispatchEvent(new CustomEvent("letterer:change"));
+  });
+
+  // Hook into setSideBySide / updateScriptViewer to refresh text view.
+  const origUpdate = updateScriptViewer;
+  // eslint-disable-next-line no-global-assign
+  updateScriptViewer = function () {
+    origUpdate.apply(this, arguments);
+    if (state.scriptViewerMode === "text") setScriptMode("text");
+  };
+})();
