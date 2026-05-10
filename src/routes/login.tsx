@@ -67,6 +67,18 @@ function LoginPage() {
     return "dark";
   });
   const [mounted, setMounted] = useState(false);
+  // Tracks whether the current theme came from an explicit user override.
+  // Until the user clicks the toggle, we keep following the OS preference.
+  const userOverrodeRef = useRef<boolean>(
+    typeof window !== "undefined" &&
+      !!(() => {
+        try {
+          return window.localStorage.getItem("login-theme-preview");
+        } catch {
+          return null;
+        }
+      })(),
+  );
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -74,13 +86,28 @@ function LoginPage() {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
     root.classList.toggle("light", theme === "light");
+    if (!userOverrodeRef.current) return;
     try {
       window.localStorage.setItem("login-theme-preview", theme);
     } catch {
       /* ignore */
     }
   }, [theme]);
-  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
+  // While the user hasn't overridden, mirror live OS theme changes.
+  useEffect(() => {
+    if (userOverrodeRef.current) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (e: MediaQueryListEvent) => {
+      if (userOverrodeRef.current) return;
+      setTheme(e.matches ? "dark" : "light");
+    };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const toggleTheme = () => {
+    userOverrodeRef.current = true;
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  };
   useEffect(() => {
     if (!signedOut) return;
     // Strip ?signedOut=1 so a refresh doesn't re-show the banner.
