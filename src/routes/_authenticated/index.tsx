@@ -685,7 +685,7 @@ function HologramControls({
           title="Collapse"
           style={{
             background: "transparent",
-            color: "#a9c2e6",
+            color: surface.muted,
             border: 0,
             cursor: "pointer",
             padding: 2,
@@ -700,7 +700,7 @@ function HologramControls({
       <label htmlFor="holo-glow" style={{ display: "block", marginBottom: 2 }}>
         <span style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Glow</span>
-          <span style={{ color: "#a9c2e6" }}>{fmt(glow)}</span>
+          <span style={{ color: surface.muted }}>{fmt(glow)}</span>
         </span>
       </label>
       <input
@@ -712,13 +712,13 @@ function HologramControls({
         value={glow}
         onChange={(e) => onGlow(Number.parseFloat(e.target.value))}
         aria-valuetext={fmt(glow)}
-        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+        style={{ width: "100%", accentColor: surface.accent, marginBottom: 8 }}
       />
 
       <label htmlFor="holo-speed" style={{ display: "block", marginBottom: 2 }}>
         <span style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Speed</span>
-          <span style={{ color: "#a9c2e6" }}>{fmt(speed)}</span>
+          <span style={{ color: surface.muted }}>{fmt(speed)}</span>
         </span>
       </label>
       <input
@@ -731,7 +731,7 @@ function HologramControls({
         onChange={(e) => onSpeed(Number.parseFloat(e.target.value))}
         aria-valuetext={fmt(speed)}
         title="Beam rotation speed (no effect with reduced motion)"
-        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+        style={{ width: "100%", accentColor: surface.accent, marginBottom: 8 }}
       />
 
       <button
@@ -739,8 +739,8 @@ function HologramControls({
         onClick={onReset}
         style={{
           background: "transparent",
-          color: "#a9c2e6",
-          border: "1px solid rgba(120,180,255,0.3)",
+          color: surface.muted,
+          border: `1px solid ${surface.border}`,
           borderRadius: 6,
           padding: "4px 10px",
           fontSize: 11,
