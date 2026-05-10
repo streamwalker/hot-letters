@@ -168,7 +168,6 @@ export function Ships({ count = 5, faint = false }: { count?: number; faint?: bo
             left: 0,
             ["--ship-op" as string]: String(s.opacity),
             animation: `${s.anim} ${s.dur}s ease-in-out ${s.delay}s infinite`,
-            willChange: "left, transform, opacity",
           } as CSSProperties}
         >
           <img
