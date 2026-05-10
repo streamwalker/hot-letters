@@ -149,10 +149,10 @@ export function Ships({ count = 5, faint = false }: { count?: number; faint?: bo
       className="ships-window"
       style={{
         position: "absolute",
-        left: "42%",
-        right: "14%",
-        top: "5%",
-        height: "55%",
+        left: "37%",
+        right: "35%",
+        top: "2%",
+        height: "58%",
         zIndex: 1,
         pointerEvents: "none",
         overflow: "hidden",
