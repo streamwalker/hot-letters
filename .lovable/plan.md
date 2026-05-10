@@ -1,54 +1,70 @@
 ## Goal
 
-Make the hologram emitter pick its color palette automatically from the active dashboard theme (the `.dark` class on `<html>`, falling back to `prefers-color-scheme`). It should switch live when the theme flips — no reload needed.
+When the user performs a meaningful dashboard action (Save, Export, Parse, Add Balloon, autosave commit), the hologram briefly surges: brighter glow, faster spin, an expanding shockwave ring, and a short color tint keyed to the action category.
 
-## Approach
+## Event contract
 
-Drive every hologram color through CSS custom properties set on the emitter root, then expose two palettes via a small `useTheme` hook. All colors flow through variables so the existing structure (keyframes, gradients, sliders) keeps working untouched.
+A single `window` custom event drives everything:
 
-### Palette
+```ts
+window.dispatchEvent(new CustomEvent("holo:pulse", {
+  detail: { kind: "save" | "export" | "parse" | "balloon" | "autosave", strength?: 0..1 }
+}));
+```
 
-| Token              | Dark (today)             | Light (new)               |
-|--------------------|--------------------------|---------------------------|
-| `--holo-core`      | `180,230,255` (icy blue) | `255,235,200` (warm core) |
-| `--holo-glow-rgb`  | `120,200,255`            | `120,90,210` (indigo)     |
-| `--holo-base-1`    | `#9ad6ff`                | `#fff4d6`                 |
-| `--holo-base-2`    | `#3a8fd1`                | `#a07ad8`                 |
-| `--holo-base-3`    | `#0a2540`                | `#3b1f6b`                 |
-| `--holo-border`    | `150,220,255,0.6`        | `120,90,210,0.55`         |
+Anything in the app — including future server jobs — can fire this and the hologram reacts. Strength defaults per kind (autosave 0.4, balloon 0.5, parse 0.8, save 1.0, export 1.0).
 
-The light palette uses indigo/violet so the hologram still reads as a glowing object against a bright background instead of vanishing into pale blue.
+Action → kind mapping (capture-phase click listeners attached on `#letterer-root`):
 
-### Code changes
+| Selector              | Kind     | Tint           |
+|-----------------------|----------|----------------|
+| `#btn-save`           | save     | amber          |
+| `#btn-export-png`     | export   | green          |
+| `#btn-parse`, `#btn-parse-ai`, `#btn-parse-photo` | parse | magenta |
+| `#btn-add-balloon`    | balloon  | cyan (default) |
+| `letterer:change` event (autosave) | autosave | amber, low strength |
 
-**`src/routes/_authenticated/index.tsx`**
+A short cooldown (~250ms) per kind prevents a flood from rapid clicks or autosave bursts.
 
-1. Add a small `useTheme()` hook in the same file (no new files):
-   - State `"dark" | "light"`, initialized from `document.documentElement.classList.contains("dark")` then `prefers-color-scheme`, defaulting to dark to match today.
-   - `MutationObserver` on `<html>` for `class` attribute changes → updates state when login or any future toggle flips the class.
-   - `matchMedia("(prefers-color-scheme: dark)")` listener for OS-level changes (only used when the explicit class isn't present).
-   - SSR-safe (returns `"dark"` on server).
+## Code changes (only `src/routes/_authenticated/index.tsx`)
 
-2. `HologramEmitter` accepts no new prop; calls `useTheme()` internally.
-   - Builds a `palette` object based on theme.
-   - Sets CSS variables on the root wrapper `<div>` via `style={{ ["--holo-core"]: palette.core, ... }}`.
-   - Replaces hardcoded `rgba(120,200,255,...)`, `rgba(180,230,255,...)` literals in the inline `<style>` block, beam `conic-gradient`, base `radial-gradient`, dot `background`/`boxShadow`, and border with `rgb(var(--holo-glow-rgb) / <alpha>)` / `var(--holo-base-1)` etc.
-   - The existing `glow` and `speed` props keep working — alpha multipliers wrap the same variables.
+### 1. Action wiring (inside the existing `useEffect` that injects the letterer scripts)
 
-3. `HologramControls` panel: also theme-adaptive surface. Replace the hardcoded deep-navy `background`/`color`/`border` with theme-derived values (dark: today's deep navy; light: white-glass `rgba(255,255,255,0.85)` with indigo border + dark text). Reuses the same `useTheme()` hook.
+After the scripts append, add a delegated capture-phase `click` listener on `document` that maps the matched button id to a `kind` and dispatches `holo:pulse`. Also add a `letterer:change` listener that dispatches `{ kind: "autosave", strength: 0.35 }` (debounced to once per 600ms so it doesn't strobe). Both cleaned up in the existing return.
 
-### Edge cases
+### 2. `HologramEmitter` reactive pulse state
 
-- No theme toggle on the dashboard yet — the hook still works because login sets the class and it persists across navigation. If the user later adds a dashboard toggle, this code automatically reacts.
-- Reduced-motion: unchanged; only colors are theme-driven, not animations.
-- Slider keyframes: the `<style>` template is regenerated whenever `glow` changes, so it picks up theme variables on every render — no stale color issue.
+- New state `pulse: { kind, strength, id } | null`. On `holo:pulse`, set state and start a `setTimeout` (~1100ms) to clear it. New events override the timer (last-write-wins).
+- Compute `effectiveGlow = glow + (pulse?.strength ?? 0) * 1.5` and `effectiveSpeed = speed * (1 + (pulse?.strength ?? 0) * 2.5)`. Both feed the existing `glow`/`speed` math — no other changes to the beam/dots/base rendering.
+- Tint: small `tintMap` from kind → rgb triplet (overrides `palette.glow` for the duration of the pulse via the existing `p.glow` token computation). Falls back to theme palette when no pulse.
+- The CSS keyframe templates already re-render on every `glow` change, so updated colors land instantly.
 
-### Files touched
+### 3. Shockwave ring
+
+A new `<span class="holo-shockwave" />` rendered conditionally inside the emitter when `pulse` is truthy:
+- Absolute, centered on the emitter base (left:50%, bottom:6px).
+- 14px square, `border: 2px solid rgba(<tint>, 0.85)`, `border-radius: 50%`.
+- New keyframe `holo-shockwave-expand`: scales from 0.4 → 4 and fades opacity 0.95 → 0 over ~1000ms ease-out.
+- Keyed by `pulse.id` so each pulse remounts and replays the animation cleanly.
+- Hidden under `prefers-reduced-motion` (added to existing reduced-motion media block).
+
+### 4. Pulse log (optional micro-affordance)
+
+Tiny floating chip that appears for ~1.2s above the emitter with the kind label ("SAVED", "EXPORTED", "PARSED", "AUTOSAVED", "BALLOON"). Same fade-in/out timing as the shockwave. Useful feedback when the dashboard is busy and the user might miss the visual surge. Reuses theme tokens from `useTheme()`.
+
+## Behavior tuning
+
+- Cooldown per kind (250ms) and autosave debounce (600ms) keep things from strobing.
+- Pulse strength is additive to the user's slider settings — sliders remain the baseline, pulses transiently overshoot.
+- If user has slider glow at 0, pulses still show (so the feature is never invisible).
+- Reduced motion: only the color tint + chip label fire; no shockwave, no spin-up.
+
+## Files touched
 
 - `src/routes/_authenticated/index.tsx` (only)
 
-### Out of scope
+## Out of scope
 
-- Login-page hologram styling (none exists; the login uses a different scene).
-- Adding a dashboard theme toggle UI.
-- Tuning the color tokens in `src/styles.css` — palette lives inline with the component since it's specific to the hologram.
+- Editing `letterer-app.js` or `letterer-bridge.js` — we listen for events they already emit and delegate clicks instead.
+- New audio/haptics.
+- Persisting pulse history.

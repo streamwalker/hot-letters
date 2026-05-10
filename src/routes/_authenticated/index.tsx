@@ -173,10 +173,61 @@ function Letterer() {
     }
 
     window.addEventListener("letterer:change", scheduleSave);
+
+    // ----- Hologram pulse wiring ---------------------------------------
+    // Map action buttons → pulse kinds. Capture phase so we fire even if
+    // the inner handler stops propagation. Cooldown prevents flooding.
+    const BTN_KINDS: Record<string, "save" | "export" | "parse" | "balloon"> = {
+      "btn-save": "save",
+      "btn-export-png": "export",
+      "btn-parse": "parse",
+      "btn-parse-ai": "parse",
+      "btn-parse-photo": "parse",
+      "btn-add-balloon": "balloon",
+    };
+    const STRENGTH: Record<string, number> = {
+      save: 1.0, export: 1.0, parse: 0.8, balloon: 0.5, autosave: 0.35,
+    };
+    const lastPulseAt: Record<string, number> = {};
+    const COOLDOWN_MS = 250;
+    function firePulse(kind: string) {
+      const now = Date.now();
+      if (now - (lastPulseAt[kind] ?? 0) < COOLDOWN_MS) return;
+      lastPulseAt[kind] = now;
+      window.dispatchEvent(
+        new CustomEvent("holo:pulse", {
+          detail: { kind, strength: STRENGTH[kind] ?? 0.6 },
+        }),
+      );
+    }
+    function onClickCapture(e: Event) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const btn = target.closest?.("button, label") as HTMLElement | null;
+      if (!btn?.id) return;
+      const kind = BTN_KINDS[btn.id];
+      if (kind) firePulse(kind);
+    }
+    document.addEventListener("click", onClickCapture, true);
+    // Autosave pulse — debounced separately from cooldown.
+    let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+    function onAutosaveChange() {
+      if (autosaveTimer) return;
+      autosaveTimer = setTimeout(() => {
+        autosaveTimer = null;
+        firePulse("autosave");
+      }, 600);
+    }
+    window.addEventListener("letterer:change", onAutosaveChange);
+    // -------------------------------------------------------------------
+
     init();
 
     return () => {
       window.removeEventListener("letterer:change", scheduleSave);
+      window.removeEventListener("letterer:change", onAutosaveChange);
+      document.removeEventListener("click", onClickCapture, true);
+      if (autosaveTimer) clearTimeout(autosaveTimer);
       if (saveTimer) clearTimeout(saveTimer);
       s1.remove();
       s2.remove();
@@ -482,9 +533,48 @@ const HOLO_PALETTES: Record<"dark" | "light", HoloPalette> = {
   },
 };
 
+type PulseKind = "save" | "export" | "parse" | "balloon" | "autosave";
+
+const PULSE_TINTS: Record<PulseKind, { glow: string; core: string; label: string }> = {
+  save:     { glow: "255,180,80",  core: "255,230,170", label: "SAVED" },
+  export:   { glow: "120,230,140", core: "210,255,220", label: "EXPORTED" },
+  parse:    { glow: "230,110,220", core: "255,200,250", label: "PARSED" },
+  balloon:  { glow: "120,200,255", core: "210,240,255", label: "BALLOON" },
+  autosave: { glow: "255,200,120", core: "255,235,200", label: "AUTOSAVED" },
+};
+
 function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: number }) {
   const theme = useTheme();
-  const p = HOLO_PALETTES[theme];
+  const basePalette = HOLO_PALETTES[theme];
+  const [pulse, setPulse] = useState<{ kind: PulseKind; strength: number; id: number } | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let nextId = 1;
+    function onPulse(e: Event) {
+      const detail = (e as CustomEvent).detail as { kind?: PulseKind; strength?: number } | undefined;
+      const kind = (detail?.kind ?? "balloon") as PulseKind;
+      const strength = Math.max(0, Math.min(1, detail?.strength ?? 0.6));
+      setPulse({ kind, strength, id: nextId++ });
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setPulse(null), 1100);
+    }
+    window.addEventListener("holo:pulse", onPulse);
+    return () => {
+      window.removeEventListener("holo:pulse", onPulse);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  // Tint overrides palette glow/core during a pulse.
+  const tint = pulse ? PULSE_TINTS[pulse.kind] : null;
+  const p = tint
+    ? { ...basePalette, glow: tint.glow, core: tint.core }
+    : basePalette;
+  // Effective glow/speed: user sliders are baseline, pulses overshoot.
+  const pulseStrength = pulse?.strength ?? 0;
+  const effGlow = glow + pulseStrength * 1.5;
+  const effSpeed = speed * (1 + pulseStrength * 2.5);
+
   // 12 floating dots with deterministic positions/delays so SSR + CSR match.
   const dots = Array.from({ length: 12 }, (_, i) => {
     const angle = (i / 12) * Math.PI * 2;
@@ -496,11 +586,11 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
     return { x, y, delay, dur, i };
   });
   // Beam rotation duration scales inversely with the speed multiplier.
-  const beamDur = (6 / Math.max(0.05, speed)).toFixed(3);
+  const beamDur = (6 / Math.max(0.05, effSpeed)).toFixed(3);
   // Helper to multiply alpha values by glow.
-  const a = (base: number) => Math.min(1, Math.max(0, base * glow));
+  const a = (base: number) => Math.min(1, Math.max(0, base * effGlow));
   // Multiply blur/spread by glow too so the halo grows with intensity.
-  const s = (base: number) => Math.max(0, base * glow);
+  const s = (base: number) => Math.max(0, base * effGlow);
 
   return (
     <div
@@ -518,8 +608,8 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
       <style>{`
         @keyframes holo-beam-rotate { to { transform: translateX(-50%) rotate(360deg); } }
         @keyframes holo-beam-flicker {
-          0%, 100% { opacity: ${(0.55 * glow).toFixed(3)}; }
-          50%      { opacity: ${Math.min(1, 0.85 * glow).toFixed(3)}; }
+          0%, 100% { opacity: ${(0.55 * effGlow).toFixed(3)}; }
+          50%      { opacity: ${Math.min(1, 0.85 * effGlow).toFixed(3)}; }
         }
         @keyframes holo-base-pulse-dyn {
           0%, 100% { box-shadow: 0 0 ${s(14)}px ${s(2)}px rgba(${p.glow},${a(0.55).toFixed(3)}), 0 0 ${s(28)}px ${s(6)}px rgba(${p.glow},${a(0.25).toFixed(3)}); }
@@ -532,8 +622,19 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           85%  { opacity: 1; }
           100% { transform: translate(0, -90px) scale(0.6); opacity: 0; }
         }
+        @keyframes holo-shockwave-expand {
+          0%   { transform: translateX(-50%) scale(0.4); opacity: 0.95; }
+          100% { transform: translateX(-50%) scale(4);   opacity: 0;    }
+        }
+        @keyframes holo-chip-flash {
+          0%   { transform: translateX(-50%) translateY(6px); opacity: 0; }
+          15%  { transform: translateX(-50%) translateY(0);   opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateX(-50%) translateY(-8px); opacity: 0; }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .holo-beam, .holo-base, .holo-dot { animation: none !important; }
+          .holo-beam, .holo-base, .holo-dot, .holo-shockwave, .holo-chip { animation: none !important; }
+          .holo-shockwave { display: none !important; }
         }
       `}</style>
 
@@ -594,6 +695,57 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           animation: "holo-base-pulse-dyn 2.8s ease-in-out infinite",
         }}
       />
+
+      {/* Expanding shockwave ring + label chip on each pulse. Keyed by id
+          so each pulse remounts and the animation replays cleanly. */}
+      {pulse && tint && (
+        <span
+          key={`sw-${pulse.id}`}
+          className="holo-shockwave"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 6,
+            width: 14,
+            height: 14,
+            marginLeft: -7,
+            borderRadius: "50%",
+            border: `2px solid rgba(${tint.glow},0.85)`,
+            boxShadow: `0 0 12px 2px rgba(${tint.glow},0.55)`,
+            transformOrigin: "50% 50%",
+            animation: "holo-shockwave-expand 1000ms ease-out forwards",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {pulse && tint && (
+        <span
+          key={`chip-${pulse.id}`}
+          className="holo-chip"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 4,
+            transform: "translateX(-50%)",
+            padding: "2px 8px",
+            borderRadius: 999,
+            background: `rgba(${tint.glow},0.18)`,
+            border: `1px solid rgba(${tint.glow},0.7)`,
+            color: `rgb(${tint.core})`,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: 9,
+            letterSpacing: 1.2,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            textShadow: `0 0 6px rgba(${tint.glow},0.8)`,
+            animation: "holo-chip-flash 1100ms ease-out forwards",
+          }}
+        >
+          {tint.label}
+        </span>
+      )}
     </div>
   );
 }
