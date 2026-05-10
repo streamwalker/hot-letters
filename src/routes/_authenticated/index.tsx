@@ -51,6 +51,28 @@ declare global {
 function Letterer() {
   const ranRef = useRef(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
+
+  // When the dialog opens, remember focus and move it to the destructive
+  // action; restore focus on close.
+  useEffect(() => {
+    if (!confirmOpen) return;
+    lastFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
+    confirmBtnRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setConfirmOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      lastFocusedRef.current?.focus?.();
+    };
+  }, [confirmOpen]);
 
   useEffect(() => {
     if (ranRef.current) return;
