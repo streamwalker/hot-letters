@@ -9,6 +9,7 @@ import {
   Ships,
   PointsOfLight,
   ConsoleScreen,
+  StarField,
 } from "@/components/scene-motion";
 
 /**
