@@ -119,29 +119,50 @@ function Letterer() {
   }, []);
 
   async function logout() {
-    await supabase.auth.signOut();
-    window.location.assign("/login");
+    if (signingOut) return;
+    setSigningOut(true);
+    try {
+      // Wipe local + remote sessions across all tabs.
+      await supabase.auth.signOut({ scope: "global" });
+    } catch (err) {
+      console.error("Sign out failed", err);
+    } finally {
+      // Hard navigate so any in-memory state from the editor is dropped.
+      window.location.assign("/login");
+    }
   }
 
   return (
     <>
       <button
         onClick={logout}
+        disabled={signingOut}
+        aria-label="Sign out and return to the login page"
+        aria-busy={signingOut}
         style={{
           position: "fixed",
           top: 8,
           right: 8,
           zIndex: 2000,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
           background: "#2c313a",
           color: "#e6e9ef",
           border: "1px solid #3a414d",
-          padding: "5px 10px",
-          borderRadius: 5,
+          padding: "6px 12px",
+          borderRadius: 6,
           fontSize: 12,
-          cursor: "pointer",
+          fontWeight: 600,
+          letterSpacing: 0.3,
+          cursor: signingOut ? "wait" : "pointer",
+          opacity: signingOut ? 0.7 : 1,
         }}
         title="Sign out"
       >
+        <span aria-hidden="true">⎋</span>
+        {signingOut ? "Signing out…" : "Log out"}
+      </button>
         Log out
       </button>
       <div
