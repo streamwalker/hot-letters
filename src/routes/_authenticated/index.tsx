@@ -386,7 +386,19 @@ function Letterer() {
           <style>{`@keyframes letterer-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-      <HologramEmitter />
+      <HologramEmitter glow={holoGlow} speed={holoSpeed} />
+      <HologramControls
+        glow={holoGlow}
+        speed={holoSpeed}
+        open={holoOpen}
+        onGlow={setHoloGlow}
+        onSpeed={setHoloSpeed}
+        onToggle={() => setHoloOpen((v) => !v)}
+        onReset={() => {
+          setHoloGlow(HOLO_DEFAULTS.glow);
+          setHoloSpeed(HOLO_DEFAULTS.speed);
+        }}
+      />
       <AmbientShips />
       <ConsoleScreen
         tint="cyan"
