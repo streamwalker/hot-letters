@@ -46,6 +46,35 @@ function LoginPage() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Theme toggle: lets users preview light vs dark login styling instantly.
+  // Initial value follows the document's existing class (set by app shell or
+  // prior preference), falling back to the OS preference.
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "dark";
+    if (document.documentElement.classList.contains("dark")) return "dark";
+    if (document.documentElement.classList.contains("light")) return "light";
+    try {
+      const stored = window.localStorage.getItem("login-theme-preview");
+      if (stored === "light" || stored === "dark") return stored;
+    } catch {
+      /* ignore */
+    }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    root.classList.toggle("light", theme === "light");
+    try {
+      window.localStorage.setItem("login-theme-preview", theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   useEffect(() => {
     if (!signedOut) return;
     // Strip ?signedOut=1 so a refresh doesn't re-show the banner.
