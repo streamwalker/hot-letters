@@ -205,10 +205,10 @@ function LoginPage() {
           isMobile
             ? {
                 position: "relative",
-                width: "min(260px, 70vw)",
+                width: "min(780px, 90vw)",
                 height: "auto",
                 marginTop: 8,
-                marginBottom: 24,
+                marginBottom: 16,
                 filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
                 zIndex: 2,
@@ -217,7 +217,7 @@ function LoginPage() {
                 position: "absolute",
                 top: "3vh",
                 left: "3vw",
-                width: "min(280px, 22vw)",
+                width: "min(840px, 66vw)",
                 height: "auto",
                 filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
