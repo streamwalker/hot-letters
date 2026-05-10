@@ -695,6 +695,57 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           animation: "holo-base-pulse-dyn 2.8s ease-in-out infinite",
         }}
       />
+
+      {/* Expanding shockwave ring + label chip on each pulse. Keyed by id
+          so each pulse remounts and the animation replays cleanly. */}
+      {pulse && tint && (
+        <span
+          key={`sw-${pulse.id}`}
+          className="holo-shockwave"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 6,
+            width: 14,
+            height: 14,
+            marginLeft: -7,
+            borderRadius: "50%",
+            border: `2px solid rgba(${tint.glow},0.85)`,
+            boxShadow: `0 0 12px 2px rgba(${tint.glow},0.55)`,
+            transformOrigin: "50% 50%",
+            animation: "holo-shockwave-expand 1000ms ease-out forwards",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+      {pulse && tint && (
+        <span
+          key={`chip-${pulse.id}`}
+          className="holo-chip"
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 4,
+            transform: "translateX(-50%)",
+            padding: "2px 8px",
+            borderRadius: 999,
+            background: `rgba(${tint.glow},0.18)`,
+            border: `1px solid rgba(${tint.glow},0.7)`,
+            color: `rgb(${tint.core})`,
+            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+            fontSize: 9,
+            letterSpacing: 1.2,
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+            textShadow: `0 0 6px rgba(${tint.glow},0.8)`,
+            animation: "holo-chip-flash 1100ms ease-out forwards",
+          }}
+        >
+          {tint.label}
+        </span>
+      )}
     </div>
   );
 }
