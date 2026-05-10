@@ -66,7 +66,13 @@ function LoginPage() {
       setSuccess(`Signed in! Redirecting to ${friendly}…`);
       setStatusMessage(`Signed in successfully. Redirecting to ${friendly}.`);
       setBusy(true);
-      window.setTimeout(() => navigate({ to: target, replace: true }), 1200);
+      const REDIRECT_DELAY_MS = 1200;
+      window.setTimeout(() => {
+        // Auto-dismiss the banner as we hand off to the next route.
+        setSuccess(null);
+        setStatusMessage("");
+        navigate({ to: target, replace: true });
+      }, REDIRECT_DELAY_MS);
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate, redirectTo]);
@@ -301,32 +307,41 @@ function LoginPage() {
         {success && (
           <div
             style={{
-              marginTop: 14,
-              padding: "10px 12px",
-              background: "rgba(46, 160, 110, 0.18)",
-              border: "1px solid rgba(120, 220, 170, 0.45)",
-              borderRadius: 8,
-              color: "#9ff0c2",
+              marginTop: isMobile ? 14 : 10,
+              padding: isMobile ? "12px 14px" : "10px 12px",
+              // Match the form's deep-navy glass surface so the banner reads
+              // as part of the same panel rather than a foreign element.
+              background: "rgba(8, 18, 36, 0.7)",
+              border: "1px solid rgba(120, 180, 255, 0.45)",
+              borderRadius: 10,
+              color: "#e6f1ff",
+              fontFamily: "inherit",
               fontSize: isMobile ? 14 : 13,
+              letterSpacing: 0.2,
+              boxShadow: "0 0 0 3px rgba(120, 180, 255, 0.12)",
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 12,
             }}
           >
             <span
               aria-hidden="true"
               style={{
-                width: 18,
-                height: 18,
+                width: 20,
+                height: 20,
                 borderRadius: "50%",
-                background: "#2ecc71",
-                color: "#04101f",
+                // Use the same accent blue family as the submit button so the
+                // success affordance lives in the existing design system.
+                background: "linear-gradient(180deg, #2a6fc4 0%, #14457f 100%)",
+                color: "#ffffff",
                 fontWeight: 800,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 12,
+                lineHeight: 1,
                 flexShrink: 0,
+                boxShadow: "0 0 0 1px rgba(120,180,255,0.5)",
               }}
             >
               ✓
