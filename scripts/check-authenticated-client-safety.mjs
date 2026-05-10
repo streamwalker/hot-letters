@@ -262,7 +262,7 @@ function extractStaticImports(source) {
   return [...out];
 }
 
-function checkNamedImports(source, file, fileRel, allow, violations, suppressed) {
+function checkNamedImports(source, file, fileRel, chain, allow, violations, suppressed) {
   for (const { name, reason } of FORBIDDEN_NAMED) {
     const re = new RegExp(
       `(?:import|export)\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*['"]`,
@@ -270,13 +270,14 @@ function checkNamedImports(source, file, fileRel, allow, violations, suppressed)
     );
     if (re.test(source)) {
       const a = namedAllowed(allow, fileRel, name);
-      if (a) suppressed.push({ kind: "named", file, spec: name, reason, allow: a });
-      else violations.push({ file, spec: name, reason });
+      const record = { kind: "named", file, spec: name, reason, chain };
+      if (a) suppressed.push({ ...record, allow: a });
+      else violations.push(record);
     }
   }
 }
 
-function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
+function walk(file, parents, seen, violations, suppressed, aliasCfg, allow, rootDir) {
   if (seen.has(file)) return;
   seen.add(file);
 
@@ -291,7 +292,8 @@ function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
   }
 
   const fileRel = toRepoRel(file, rootDir);
-  checkNamedImports(source, file, fileRel, allow, violations, suppressed);
+  const chain = [...parents, fileRel];
+  checkNamedImports(source, file, fileRel, chain, allow, violations, suppressed);
 
   // File-level allowlist: scanned for forbidden named symbols above, but we
   // do not descend into its imports.
@@ -301,12 +303,13 @@ function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
     for (const { test, reason } of FORBIDDEN_SPECIFIERS) {
       if (test(spec)) {
         const a = specifierAllowed(allow, fileRel, spec);
-        if (a) suppressed.push({ kind: "specifier", file, spec, reason, allow: a });
-        else violations.push({ file, spec, reason });
+        const record = { kind: "specifier", file, spec, reason, chain };
+        if (a) suppressed.push({ ...record, allow: a });
+        else violations.push(record);
       }
     }
     const resolved = resolveSpecifier(spec, file, aliasCfg);
-    if (resolved) walk(resolved, seen, violations, suppressed, aliasCfg, allow, rootDir);
+    if (resolved) walk(resolved, chain, seen, violations, suppressed, aliasCfg, allow, rootDir);
   }
 }
 
@@ -317,13 +320,35 @@ function runCheck(rootDir, entry) {
   const allow = loadAllowlist(rootDir);
   const violations = [];
   const suppressed = [];
-  walk(entry, new Set(), violations, suppressed, aliasCfg, allow, rootDir);
+  walk(entry, [], new Set(), violations, suppressed, aliasCfg, allow, rootDir);
   const stale = [
     ...allow.specifiers.filter((e) => !e._used).map((e) => ({ kind: "specifiers", entry: e })),
     ...allow.files.filter((e) => !e._used).map((e) => ({ kind: "files", entry: e })),
     ...allow.named.filter((e) => !e._used).map((e) => ({ kind: "named", entry: e })),
   ];
-  return { violations, suppressed, stale };
+  return { violations: dedupe(violations), suppressed: dedupe(suppressed), stale };
+}
+
+function dedupe(records) {
+  const seen = new Set();
+  const out = [];
+  for (const r of records) {
+    const key = `${r.chain ? r.chain.join(">") : ""}::${r.spec}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+function formatChain(chain, finalArrow) {
+  const lines = [];
+  if (chain && chain.length > 0) {
+    lines.push(`      ${chain[0]}`);
+    for (let i = 1; i < chain.length; i++) lines.push(`        → ${chain[i]}`);
+  }
+  if (finalArrow) lines.push(`        → ${finalArrow}`);
+  return lines.join("\n");
 }
 
 function reportAndExit(result, entryRel) {
@@ -334,8 +359,9 @@ function reportAndExit(result, entryRel) {
       `[auth-client-safety] suppressed ${suppressed.length} finding(s) via allowlist:`,
     );
     for (const s of suppressed) {
-      const rel = s.file.replace(ROOT + "/", "");
-      console.log(`  - ${rel}  "${s.spec}"  (${s.reason})  — ${s.allow.reason}`);
+      console.log(`  - "${s.spec}"  (${s.reason})  — ${s.allow.reason}`);
+      console.log(`    chain:`);
+      console.log(formatChain(s.chain, `"${s.spec}"   ← suppressed`));
     }
   }
 
@@ -353,11 +379,13 @@ function reportAndExit(result, entryRel) {
       `\n[auth-client-safety] FAIL: ${violations.length} server-only import(s) reachable from ${entryRel}:\n`,
     );
     for (const v of violations) {
-      const rel = v.file.replace(ROOT + "/", "");
-      console.error(`  - ${rel}\n      imports "${v.spec}"  (${v.reason})`);
+      console.error(`  - imports "${v.spec}"  (${v.reason})`);
+      console.error(`    chain:`);
+      console.error(formatChain(v.chain, `"${v.spec}"   ← forbidden`));
+      console.error("");
     }
     console.error(
-      `\nFix: move the server-only code behind createServerFn / createIsomorphicFn().server(),\n` +
+      `Fix: move the server-only code behind createServerFn / createIsomorphicFn().server(),\n` +
         `or load it via a dynamic import() inside a server-only branch.\n` +
         `If genuinely safe, add a documented entry to ${ALLOWLIST_FILENAME}.\n`,
     );
@@ -580,6 +608,68 @@ function selfTest() {
     child.status === 1 && /missing\/empty required string `reason`/.test(child.stderr),
     `status=${child.status} stderr=${child.stderr}`,
   );
+
+  // Case 10: 3-hop chain to a forbidden specifier is recorded in `chain`.
+  setup(
+    {
+      "src/entry.ts": `import "./mid1";\n`,
+      "src/mid1.ts": `import "./mid2";\n`,
+      "src/mid2.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const v = r.violations.find((x) => x.spec === "./leaf.server");
+    expect(
+      "specifier violation carries full entry→importer chain",
+      !!v && JSON.stringify(v.chain) === JSON.stringify(["src/entry.ts", "src/mid1.ts", "src/mid2.ts"]),
+      `chain=${v ? JSON.stringify(v.chain) : "<no violation>"}`,
+    );
+  }
+
+  // Case 11: named-symbol violation chain ends at the file containing the import.
+  setup(
+    {
+      "src/entry.ts": `import "./bridge";\n`,
+      "src/bridge.ts": `import { supabaseAdmin } from "x";\nexport const y = supabaseAdmin;\n`,
+    },
+    { compilerOptions: {} },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const v = r.violations.find((x) => x.spec === "supabaseAdmin");
+    expect(
+      "named violation chain ends at the importing file",
+      !!v && JSON.stringify(v.chain) === JSON.stringify(["src/entry.ts", "src/bridge.ts"]),
+      `chain=${v ? JSON.stringify(v.chain) : "<no violation>"}`,
+    );
+  }
+
+  // Case 12: suppressed (allowlisted) finding also carries chain.
+  setup(
+    {
+      "src/entry.ts": `import "./mid";\n`,
+      "src/mid.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [{ from: "src/mid.ts", spec: "./leaf.server", reason: "test" }],
+      files: [],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const s = r.suppressed.find((x) => x.spec === "./leaf.server");
+    expect(
+      "suppressed finding carries full chain",
+      !!s && JSON.stringify(s.chain) === JSON.stringify(["src/entry.ts", "src/mid.ts"]),
+      `chain=${s ? JSON.stringify(s.chain) : "<no suppressed>"}`,
+    );
+  }
 
   rmSync(dir, { recursive: true, force: true });
 
