@@ -608,8 +608,8 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
       <style>{`
         @keyframes holo-beam-rotate { to { transform: translateX(-50%) rotate(360deg); } }
         @keyframes holo-beam-flicker {
-          0%, 100% { opacity: ${(0.55 * glow).toFixed(3)}; }
-          50%      { opacity: ${Math.min(1, 0.85 * glow).toFixed(3)}; }
+          0%, 100% { opacity: ${(0.55 * effGlow).toFixed(3)}; }
+          50%      { opacity: ${Math.min(1, 0.85 * effGlow).toFixed(3)}; }
         }
         @keyframes holo-base-pulse-dyn {
           0%, 100% { box-shadow: 0 0 ${s(14)}px ${s(2)}px rgba(${p.glow},${a(0.55).toFixed(3)}), 0 0 ${s(28)}px ${s(6)}px rgba(${p.glow},${a(0.25).toFixed(3)}); }
@@ -622,8 +622,19 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           85%  { opacity: 1; }
           100% { transform: translate(0, -90px) scale(0.6); opacity: 0; }
         }
+        @keyframes holo-shockwave-expand {
+          0%   { transform: translateX(-50%) scale(0.4); opacity: 0.95; }
+          100% { transform: translateX(-50%) scale(4);   opacity: 0;    }
+        }
+        @keyframes holo-chip-flash {
+          0%   { transform: translateX(-50%) translateY(6px); opacity: 0; }
+          15%  { transform: translateX(-50%) translateY(0);   opacity: 1; }
+          80%  { opacity: 1; }
+          100% { transform: translateX(-50%) translateY(-8px); opacity: 0; }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .holo-beam, .holo-base, .holo-dot { animation: none !important; }
+          .holo-beam, .holo-base, .holo-dot, .holo-shockwave, .holo-chip { animation: none !important; }
+          .holo-shockwave { display: none !important; }
         }
       `}</style>
 
