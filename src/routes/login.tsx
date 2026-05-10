@@ -51,18 +51,20 @@ function LoginPage() {
   // Initial value follows the document's existing class (set by app shell or
   // prior preference), falling back to the OS preference.
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof document === "undefined") return "dark";
-    if (document.documentElement.classList.contains("dark")) return "dark";
-    if (document.documentElement.classList.contains("light")) return "light";
+    if (typeof window === "undefined") return "dark";
+    // 1. Honor a previously saved override so the user's choice sticks.
     try {
       const stored = window.localStorage.getItem("login-theme-preview");
       if (stored === "light" || stored === "dark") return stored;
     } catch {
       /* ignore */
     }
-    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    // 2. First load: follow the OS preference.
+    if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
+    if (window.matchMedia?.("(prefers-color-scheme: light)").matches) return "light";
+    // 3. Last resort: whatever the document already has, else dark.
+    if (document.documentElement.classList.contains("light")) return "light";
+    return "dark";
   });
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
