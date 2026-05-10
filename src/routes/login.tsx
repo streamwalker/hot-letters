@@ -205,7 +205,7 @@ function LoginPage() {
           isMobile
             ? {
                 position: "relative",
-                width: "min(260px, 70vw)",
+                width: "min(520px, 90vw)",
                 height: "auto",
                 marginTop: 8,
                 marginBottom: 24,
