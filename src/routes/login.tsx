@@ -254,6 +254,7 @@ function LoginPage() {
     >
       {/* Cinematic motion layers — positioned absolutely behind the form
           (zIndex 1), so they never intercept input. */}
+      <StarField count={isMobile ? 40 : 90} />
       {!isMobile && <CityTwinkle />}
       <Ships count={isMobile ? 3 : 5} />
       <PointsOfLight count={isMobile ? 6 : 12} />
