@@ -232,6 +232,7 @@ function LoginPage() {
         <button
           type="submit"
           disabled={busy}
+          aria-busy={busy}
           style={{
             marginTop: isMobile ? 20 : 16,
             width: "100%",
@@ -244,17 +245,52 @@ function LoginPage() {
             fontWeight: 700,
             letterSpacing: 2,
             fontSize: isMobile ? 15 : 13,
-            cursor: "pointer",
+            cursor: busy ? "not-allowed" : "pointer",
             touchAction: "manipulation",
-            opacity: busy ? 0.6 : 1,
+            opacity: busy ? 0.7 : 1,
             boxShadow: "0 6px 20px rgba(20, 69, 127, 0.5)",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
           }}
         >
-          {busy
-            ? "PLEASE WAIT…"
-            : mode === "signin"
-              ? "ENTER DASHBOARD →"
-              : "CREATE ACCOUNT →"}
+          {busy && (
+            <span
+              className="login-spinner"
+              aria-hidden="true"
+              style={{
+                width: isMobile ? 18 : 14,
+                height: isMobile ? 18 : 14,
+                borderRadius: "50%",
+                border: "2px solid rgba(255,255,255,0.35)",
+                borderTopColor: "#ffffff",
+                display: "inline-block",
+              }}
+            />
+          )}
+          <span>
+            {busy
+              ? mode === "signin"
+                ? "SIGNING IN…"
+                : "CREATING ACCOUNT…"
+              : mode === "signin"
+                ? "ENTER DASHBOARD →"
+                : "CREATE ACCOUNT →"}
+          </span>
+          <span
+            role="status"
+            aria-live="polite"
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              overflow: "hidden",
+              clip: "rect(0,0,0,0)",
+            }}
+          >
+            {busy ? "Submitting, please wait" : ""}
+          </span>
         </button>
 
         <button

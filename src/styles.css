@@ -169,3 +169,13 @@
   border-color: rgba(120, 180, 255, 0.7) !important;
   box-shadow: 0 0 0 3px rgba(120, 180, 255, 0.18);
 }
+
+@keyframes login-spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+.login-spinner {
+  animation: login-spinner-rotate 0.8s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-spinner { animation-duration: 2.4s; }
+}
