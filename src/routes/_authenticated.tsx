@@ -95,6 +95,11 @@ function AuthLayout() {
 
   useEffect(() => {
     let mounted = true;
+    const goToLogin = () => {
+      const here = window.location.pathname + window.location.search + window.location.hash;
+      const target = here && here !== "/login" ? here : "/";
+      window.location.assign(`/login?redirect=${encodeURIComponent(target)}`);
+    };
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       console.log(
@@ -105,7 +110,7 @@ function AuthLayout() {
       if (data.session) {
         setReady(true);
       } else {
-        window.location.assign("/login");
+        goToLogin();
       }
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
@@ -114,7 +119,7 @@ function AuthLayout() {
           session ? `user:${session.user.id}` : "none"
         }`,
       );
-      if (!session) window.location.assign("/login");
+      if (!session) goToLogin();
     });
     return () => {
       mounted = false;
