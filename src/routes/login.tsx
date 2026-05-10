@@ -73,6 +73,7 @@ function LoginPage() {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    setSuccess(null);
     setBusy(true);
     setStatusMessage(
       mode === "signin" ? "Signing in, please wait." : "Creating account, please wait.",
