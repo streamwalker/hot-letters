@@ -1,44 +1,65 @@
 ## Goal
-Make `scripts/check-authenticated-client-safety.mjs` more accurate so it doesn't miss server-only code that leaks via re-exports or non-`@/` path aliases.
+Let the auth client-safety guard accept a small, documented allowlist so genuinely safe server-shaped imports (e.g. a re-export wrapper that the splitter is known to handle) don't have to be silenced by restructuring code — without weakening the default-deny posture.
 
-## Changes
+## Config file
+New file: `scripts/auth-client-safety.allowlist.json` (JSONC, comments allowed via the existing strip-comments helper).
 
-### 1. Re-export detection
-Today the regex catches `import ... from "x"` and `import "x"`. Extend `extractStaticImports` to also follow:
-- `export * from "x"`
-- `export * as ns from "x"`
-- `export { a, b } from "x"`
-- `export { default as x } from "x"`
+Shape:
+```jsonc
+{
+  // Each entry must include a human-readable reason. The guard prints
+  // the reason on every match so reviewers can audit usage in PRs.
+  "specifiers": [
+    // { "spec": "@tanstack/react-start/server", "from": "src/routes/__root.tsx", "reason": "..." }
+  ],
+  "files": [
+    // { "path": "src/integrations/supabase/safe-bridge.ts", "reason": "..." }
+  ],
+  "named": [
+    // { "name": "supabaseAdmin", "from": "src/lib/typed-rpc.ts", "reason": "..." }
+  ]
+}
+```
 
-These are static and ship to the client, so they must be walked just like `import ... from`. Update the regex to a single pattern that matches `import|export` with an optional clause and a required `from "..."`, plus the existing side-effect `import "..."` form.
+Three allowlist axes, each scoped narrowly to keep the guarantee:
 
-Also extend `checkNamedImports` to catch named **re-exports** of forbidden symbols, e.g. `export { createServerOnlyFn } from "..."` and `export { supabaseAdmin } from "@/integrations/supabase/client.server"`.
+1. **`specifiers[]`** — silences a specific `(importer, specifier)` pair. Both `from` (importer path, repo-relative) and `spec` (exact specifier string) must match. No globs, no prefix matches — exact only. Prevents a blanket "ignore this specifier everywhere" foot-gun.
+2. **`files[]`** — stops the walker from descending into a leaf file (still scanned once for forbidden NAMED symbols so a slip-through is loud). Use for files the splitter is known to tree-shake. Exact repo-relative `path`.
+3. **`named[]`** — silences a forbidden named symbol only when imported in a specific file. Same exact-match rule as `specifiers`.
 
-### 2. TypeScript path alias resolution
-Replace the hard-coded `@/` branch with a generic resolver driven by `tsconfig.json` `compilerOptions.paths`:
-- Read and parse `tsconfig.json` once at startup (strip `//` and `/* */` comments — tsconfig allows them).
-- Build an alias table from `paths`, normalized against `baseUrl` (default: tsconfig dir).
-- For each specifier, try the longest matching alias prefix (TS semantics): a pattern `"@/*": ["./src/*"]` maps `@/foo/bar` → `<root>/src/foo/bar`. Patterns without `*` map exact specifiers. If multiple targets are listed, try each in order.
-- Fall back to relative resolution (`./`, `../`) as today.
-- Bare specifiers (npm packages) are still not walked, only checked by name pattern.
+Every entry requires `reason` (non-empty string). Loader fails fast with a clear error if `reason` is missing or empty — keeps the file self-documenting.
 
-This means if someone later adds e.g. `"~/*": ["./src/*"]` or `"@server/*": ["./src/server/*"]`, the guard keeps working without code changes.
+## Guard changes (`scripts/check-authenticated-client-safety.mjs`)
+- Load the allowlist alongside tsconfig at startup. Missing file → empty allowlist (no error).
+- Validate shape: arrays only, required keys per entry, unknown keys rejected. Print the offending entry on failure.
+- Plumb the allowlist through `runCheck` / `walk` (don't make it a module global — keeps the self-test isolated).
+- In the FORBIDDEN_SPECIFIERS loop, skip pushing a violation when `(file, spec)` matches a `specifiers[]` entry. Track which entries were used.
+- In `checkNamedImports`, skip when `(file, name)` matches a `named[]` entry. Track usage.
+- In `walk`, after the named-symbol scan, skip recursing into a `files[]`-allowlisted leaf. Track usage.
+- After the walk, print a one-line summary of suppressed counts so allowlist usage is visible in CI logs (e.g. `[auth-client-safety] suppressed 2 finding(s) via allowlist`).
+- Detect and warn (non-fatal) about **stale allowlist entries** — entries that didn't match anything during the walk. Stale entries print at the end with their reason; CI stays green but reviewers see the noise. (Fatal would block unrelated refactors; warn is the right default.)
 
-### 3. Resolution polish
-- When following a directory import, also try `index` lookups in the order TS uses (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.cjs`).
-- Skip non-source extensions (`.css`, `.json`, `.svg`, `.html`, `.raw`, `?raw` query suffixes) so we don't try to scan asset files. Strip Vite query suffixes (`?raw`, `?url`, `?worker`) before resolving.
-- De-duplicate via the existing `seen` set keyed by absolute resolved path.
+## Self-test additions
+Extend the existing `--self-test` cases to cover:
+- Specifier allowlist suppresses a `*.server.*` static import for the right `(file, spec)` and NOT for a different importer.
+- File allowlist stops descent (forbidden import inside the allowlisted leaf is not reported) but still flags forbidden NAMED symbols inside that leaf.
+- Named allowlist suppresses `supabaseAdmin` import in the listed file only.
+- Allowlist loader rejects entries without `reason`.
+- Stale entry produces a warning but exit code stays 0.
 
-### 4. Self-test
-Add a tiny inline self-test gated by `--self-test` flag: synthesize two in-memory cases (one with a re-export of `client.server`, one with an aliased import via a non-`@/` alias) and assert the checker reports them. This avoids adding a separate test runner while giving CI a way to catch regressions in the guard itself.
+## Documentation
+Add a header comment block to `scripts/auth-client-safety.allowlist.json` explaining:
+- Each entry needs a `reason` and a code-owner-style justification in the PR description.
+- Prefer fixing the import graph; only allowlist when restructuring is genuinely impractical.
+- Allowlist entries are reviewed during dependency upgrades — stale ones should be removed.
 
-Wire it into the existing CI step as a second invocation: `node scripts/check-authenticated-client-safety.mjs --self-test` before the real scan.
-
-## Out of scope
-- Following imports into `node_modules` (still treated as opaque; only name-pattern checks apply).
-- Parsing TypeScript with a real AST — the regex approach is good enough for ESM static syntax and keeps the script dependency-free.
-- Changing the entry file or expanding the guard to other routes (can be a follow-up).
+Ship the file with all three arrays empty so the current behavior is unchanged.
 
 ## Files touched
-- `scripts/check-authenticated-client-safety.mjs` — extended resolver + re-export handling + self-test.
-- `.github/workflows/ci.yml` — add `--self-test` invocation alongside the existing check step.
+- `scripts/check-authenticated-client-safety.mjs` — load + apply + report allowlist; expanded self-test.
+- `scripts/auth-client-safety.allowlist.json` — new, empty arrays + doc comments.
+
+## Out of scope
+- Glob/regex matching in the allowlist (intentional — exact match keeps the guarantee tight).
+- Per-route allowlists (the guard still has a single entry point).
+- Fatal-on-stale mode (can be a follow-up flag, e.g. `--strict-allowlist`).
