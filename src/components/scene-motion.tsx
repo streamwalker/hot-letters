@@ -70,17 +70,6 @@ export function CityTwinkle() {
 }
 
 /* ---------- Drifting ships ---------- */
-type ShipDef = {
-  i: number;
-  src: string;
-  size: number;        // px width
-  top: string;         // CSS top
-  dur: number;         // seconds across viewport
-  delay: number;
-  dir: "ltr" | "rtl";
-  opacity: number;
-};
-
 export function Ships({ count = 5, faint = false }: { count?: number; faint?: boolean }) {
   const ships = Array.from({ length: count }, (_, i) => {
     const isLarge = i === 0;
