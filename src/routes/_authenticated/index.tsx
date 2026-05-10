@@ -192,6 +192,114 @@ function Letterer() {
         <span aria-hidden="true">⎋</span>
         {signingOut ? "Signing out…" : "Log out"}
       </button>
+      {confirmOpen && !signingOut && (
+        <div
+          role="presentation"
+          onClick={() => setConfirmOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2500,
+            background: "rgba(8, 18, 36, 0.55)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+          }}
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="signout-title"
+            aria-describedby="signout-desc"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              background: "rgba(20, 26, 38, 0.98)",
+              color: "#e6f1ff",
+              border: "1px solid rgba(120, 180, 255, 0.25)",
+              borderRadius: 12,
+              boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+              padding: 20,
+            }}
+          >
+            <h2
+              id="signout-title"
+              style={{
+                margin: 0,
+                fontSize: 16,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+              }}
+            >
+              Sign out?
+            </h2>
+            <p
+              id="signout-desc"
+              style={{
+                margin: "8px 0 18px",
+                fontSize: 13,
+                lineHeight: 1.5,
+                color: "#a9c2e6",
+              }}
+            >
+              You'll be returned to the login page. Any unsaved edits are
+              autosaved, but the editor session will close.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 8,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                style={{
+                  background: "transparent",
+                  color: "#e6f1ff",
+                  border: "1px solid #3a414d",
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                ref={confirmBtnRef}
+                type="button"
+                onClick={() => {
+                  setConfirmOpen(false);
+                  logout();
+                }}
+                style={{
+                  background: "linear-gradient(180deg, #c44a4a 0%, #7f1414 100%)",
+                  color: "#ffffff",
+                  border: "1px solid rgba(255,180,180,0.4)",
+                  padding: "8px 14px",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  cursor: "pointer",
+                  boxShadow: "0 6px 16px rgba(127, 20, 20, 0.45)",
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {signingOut && (
         <div
           role="alertdialog"
