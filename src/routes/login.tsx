@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import loginBg from "@/assets/login-bg.png";
 import hotLettersLogo from "@/assets/hot-letters-logo.png";
@@ -30,6 +30,9 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -38,11 +41,34 @@ function LoginPage() {
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
 
+  // Focus trap: while busy, keep keyboard focus parked on the live status
+  // region so Tab/Shift-Tab can't escape the loading state.
+  useEffect(() => {
+    if (!busy) return;
+    lastFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
+    statusRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        statusRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      // Restore focus when the loading state clears.
+      lastFocusedRef.current?.focus?.();
+    };
+  }, [busy]);
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setInfo(null);
     setBusy(true);
+    setStatusMessage(
+      mode === "signin" ? "Signing in, please wait." : "Creating account, please wait.",
+    );
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
@@ -52,13 +78,17 @@ function LoginPage() {
         });
         if (error) throw error;
         setInfo("Check your email to confirm your account, then sign in.");
+        setStatusMessage("Account created. Check your email to confirm.");
         setMode("signin");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setStatusMessage("Signed in successfully.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      setStatusMessage(`Error: ${msg}`);
     } finally {
       setBusy(false);
     }
@@ -186,41 +216,46 @@ function LoginPage() {
           {mode === "signin" ? "Continue your mission." : "Join the mission."}
         </p>
 
-        <label htmlFor="login-email" style={srOnly}>
-          Email
-        </label>
-        <input
-          id="login-email"
-          name="email"
-          type="email"
-          required
-          autoComplete="email"
-          inputMode="email"
-          placeholder="Email"
-          aria-label="Email"
-          className="login-input"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={getInputStyle(isMobile)}
-        />
+        <fieldset
+          disabled={busy}
+          aria-busy={busy}
+          style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+        >
+          <label htmlFor="login-email" style={srOnly}>
+            Email
+          </label>
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            placeholder="Email"
+            aria-label="Email"
+            className="login-input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            style={getInputStyle(isMobile)}
+          />
 
-        <label htmlFor="login-password" style={srOnly}>
-          Password
-        </label>
-        <input
-          id="login-password"
-          name="password"
-          type="password"
-          required
-          minLength={6}
-          autoComplete={mode === "signin" ? "current-password" : "new-password"}
-          placeholder="Password"
-          aria-label="Password"
-          className="login-input"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
-        />
+          <label htmlFor="login-password" style={srOnly}>
+            Password
+          </label>
+          <input
+            id="login-password"
+            name="password"
+            type="password"
+            required
+            minLength={6}
+            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            placeholder="Password"
+            aria-label="Password"
+            className="login-input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
+          />
 
         {error && (
           <p style={{ color: "#ff7a7a", fontSize: isMobile ? 14 : 12, marginTop: 12 }}>{error}</p>
@@ -278,19 +313,6 @@ function LoginPage() {
                 ? "ENTER DASHBOARD →"
                 : "CREATE ACCOUNT →"}
           </span>
-          <span
-            role="status"
-            aria-live="polite"
-            style={{
-              position: "absolute",
-              width: 1,
-              height: 1,
-              overflow: "hidden",
-              clip: "rect(0,0,0,0)",
-            }}
-          >
-            {busy ? "Submitting, please wait" : ""}
-          </span>
         </button>
 
         <button
@@ -317,6 +339,31 @@ function LoginPage() {
             ? "Need an account? Sign up"
             : "Already have an account? Sign in"}
         </button>
+        </fieldset>
+
+        {/* Live region: announces busy state and result to screen readers.
+            tabIndex=-1 lets the focus trap park focus here while busy. */}
+        <div
+          ref={statusRef}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          tabIndex={-1}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0,0,0,0)",
+            whiteSpace: "nowrap",
+            border: 0,
+            outline: "none",
+          }}
+        >
+          {statusMessage}
+        </div>
       </form>
     </div>
   );
