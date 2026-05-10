@@ -54,7 +54,9 @@ function LoginPage() {
     signedOut ? "Signed out successfully. See you soon!" : null,
   );
   const [busy, setBusy] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState(
+    signedOut ? "Signed out successfully." : "",
+  );
   const statusRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
   const redirectingRef = useRef(false);
