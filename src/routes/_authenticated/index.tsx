@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Ships, ConsoleScreen } from "@/components/scene-motion";
 import "../../letterer.css";
 import bodyHtml from "../../letterer-body.html?raw";
 import appJs from "../../letterer-app.js?raw";
@@ -344,6 +345,22 @@ function Letterer() {
         </div>
       )}
       <HologramEmitter />
+      <AmbientShips />
+      <ConsoleScreen
+        tint="cyan"
+        label="SYS"
+        width={14}
+        rows={3}
+        intervalMs={520}
+        style={{
+          position: "fixed",
+          right: 12,
+          bottom: 12,
+          width: 120,
+          zIndex: 1500,
+          opacity: 0.55,
+        }}
+      />
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
@@ -459,6 +476,25 @@ function HologramEmitter() {
           animation: "holo-base-pulse 2.8s ease-in-out infinite",
         }}
       />
+    </div>
+  );
+}
+
+function AmbientShips() {
+  // Fixed full-viewport layer; sits behind the editor chrome which uses
+  // higher z-indexes in letterer.css. Faint so it doesn't distract.
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      <Ships count={3} faint />
     </div>
   );
 }
