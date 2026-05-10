@@ -313,19 +313,6 @@ function LoginPage() {
                 ? "ENTER DASHBOARD →"
                 : "CREATE ACCOUNT →"}
           </span>
-          <span
-            role="status"
-            aria-live="polite"
-            style={{
-              position: "absolute",
-              width: 1,
-              height: 1,
-              overflow: "hidden",
-              clip: "rect(0,0,0,0)",
-            }}
-          >
-            {busy ? "Submitting, please wait" : ""}
-          </span>
         </button>
 
         <button
