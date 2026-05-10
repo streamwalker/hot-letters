@@ -82,9 +82,10 @@ type ShipDef = {
 };
 
 export function Ships({ count = 5, faint = false }: { count?: number; faint?: boolean }) {
-  const ships: ShipDef[] = Array.from({ length: count }, (_, i) => {
+  const ships = Array.from({ length: count }, (_, i) => {
     const isLarge = i === 0;
     const dir: "ltr" | "rtl" = i % 2 === 0 ? "ltr" : "rtl";
+    const variant = rnd(i * 13.7) > 0.5 ? "a" : "b";
     const baseSize = isLarge ? 280 : 70 + Math.floor(rnd(i * 3.7) * 80); // 70–150
     const opacity = (faint ? 0.25 : 0.85) * (isLarge ? 1 : 0.9);
     return {
@@ -92,9 +93,9 @@ export function Ships({ count = 5, faint = false }: { count?: number; faint?: bo
       src: isLarge ? shipLarge : shipSmall,
       size: baseSize,
       top: `${4 + rnd(i * 5.3) * 22}%`, // upper sky band
-      dur: isLarge ? 60 : 22 + rnd(i * 9.1) * 18,
+      dur: isLarge ? 75 : 30 + rnd(i * 9.1) * 25,
       delay: -rnd(i * 11.7) * 30,
-      dir,
+      anim: `ship-curve-${dir}-${variant}`,
       opacity,
     };
   });
@@ -122,7 +123,7 @@ export function Ships({ count = 5, faint = false }: { count?: number; faint?: bo
             width: s.size,
             height: "auto",
             ["--ship-op" as string]: String(s.opacity),
-            animation: `${s.dir === "ltr" ? "ship-drift-ltr" : "ship-drift-rtl"} ${s.dur}s linear ${s.delay}s infinite`,
+            animation: `${s.anim} ${s.dur}s ease-in-out ${s.delay}s infinite`,
           } as CSSProperties}
         />
       ))}
