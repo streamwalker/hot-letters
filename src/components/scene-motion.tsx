@@ -27,10 +27,10 @@ export function CityTwinkle() {
       : undefined;
     return { i, left, top, w, h, dur, delay, tint };
   });
-  const beacons = Array.from({ length: 5 }, (_, i) => ({
+  const beacons = Array.from({ length: 6 }, (_, i) => ({
     i,
-    left: 6 + rnd(i * 13.1) * 50,
-    top: 55 + rnd(i * 17.3) * 18,
+    left: 40 + rnd(i * 13.1) * 26,
+    top: 12 + rnd(i * 17.3) * 18,
     delay: rnd(i * 19.7) * 5,
   }));
   return (
