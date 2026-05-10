@@ -50,6 +50,7 @@ declare global {
 
 function Letterer() {
   const ranRef = useRef(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     if (ranRef.current) return;
