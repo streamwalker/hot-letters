@@ -162,9 +162,11 @@ function Letterer() {
   return (
     <>
       <button
-        onClick={logout}
+        onClick={() => setConfirmOpen(true)}
         disabled={signingOut}
         aria-label="Sign out and return to the login page"
+        aria-haspopup="dialog"
+        aria-expanded={confirmOpen}
         aria-busy={signingOut}
         style={{
           position: "fixed",
