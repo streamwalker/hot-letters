@@ -343,10 +343,122 @@ function Letterer() {
           <style>{`@keyframes letterer-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
+      <HologramEmitter />
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
       />
     </>
+  );
+}
+
+function HologramEmitter() {
+  // 12 floating dots with deterministic positions/delays so SSR + CSR match.
+  const dots = Array.from({ length: 12 }, (_, i) => {
+    const angle = (i / 12) * Math.PI * 2;
+    const radius = 26 + (i % 3) * 8;
+    const x = Math.cos(angle) * radius;
+    const y = Math.sin(angle) * radius;
+    const delay = (i * 0.35).toFixed(2);
+    const dur = (4 + (i % 4)).toFixed(2);
+    return { x, y, delay, dur, i };
+  });
+
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        left: 16,
+        bottom: 16,
+        width: 120,
+        height: 160,
+        zIndex: 1500,
+        pointerEvents: "none",
+      }}
+    >
+      <style>{`
+        @keyframes holo-beam-rotate { to { transform: translateX(-50%) rotate(360deg); } }
+        @keyframes holo-base-pulse {
+          0%, 100% { box-shadow: 0 0 14px 2px rgba(120,200,255,0.55), 0 0 28px 6px rgba(120,200,255,0.25); }
+          50%      { box-shadow: 0 0 22px 4px rgba(150,220,255,0.85), 0 0 44px 10px rgba(120,200,255,0.4); }
+        }
+        @keyframes holo-beam-flicker {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 0.85; }
+        }
+        @keyframes holo-dot-orbit {
+          0%   { transform: translate(0,0) scale(1);   opacity: 0; }
+          15%  { opacity: 1; }
+          50%  { transform: translate(var(--dx), calc(var(--dy) - 40px)) scale(1.2); opacity: 1; }
+          85%  { opacity: 1; }
+          100% { transform: translate(0, -90px) scale(0.6); opacity: 0; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .holo-beam, .holo-base, .holo-dot { animation: none !important; }
+        }
+      `}</style>
+
+      {/* Beam */}
+      <div
+        className="holo-beam"
+        style={{
+          position: "absolute",
+          left: "50%",
+          bottom: 18,
+          width: 70,
+          height: 130,
+          transform: "translateX(-50%)",
+          transformOrigin: "50% 100%",
+          background:
+            "conic-gradient(from 0deg, rgba(120,200,255,0) 0deg, rgba(120,200,255,0.55) 30deg, rgba(180,230,255,0.15) 60deg, rgba(120,200,255,0) 120deg, rgba(120,200,255,0) 360deg)",
+          clipPath: "polygon(50% 100%, 0% 0%, 100% 0%)",
+          filter: "blur(1px)",
+          animation:
+            "holo-beam-rotate 6s linear infinite, holo-beam-flicker 2.4s ease-in-out infinite",
+          mixBlendMode: "screen",
+        }}
+      />
+
+      {/* Floating dots */}
+      {dots.map((d) => (
+        <span
+          key={d.i}
+          className="holo-dot"
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 22,
+            width: 4,
+            height: 4,
+            marginLeft: -2,
+            borderRadius: "50%",
+            background: "rgba(180,230,255,0.95)",
+            boxShadow: "0 0 6px 2px rgba(120,200,255,0.7)",
+            ["--dx" as string]: `${d.x}px`,
+            ["--dy" as string]: `${d.y}px`,
+            animation: `holo-dot-orbit ${d.dur}s ease-in-out ${d.delay}s infinite`,
+          }}
+        />
+      ))}
+
+      {/* Emitter base */}
+      <div
+        className="holo-base"
+        style={{
+          position: "absolute",
+          left: "50%",
+          bottom: 6,
+          width: 44,
+          height: 14,
+          transform: "translateX(-50%)",
+          borderRadius: "50%",
+          background:
+            "radial-gradient(ellipse at center, #9ad6ff 0%, #3a8fd1 55%, #0a2540 100%)",
+          border: "1px solid rgba(150,220,255,0.6)",
+          animation: "holo-base-pulse 2.8s ease-in-out infinite",
+        }}
+      />
+    </div>
   );
 }
