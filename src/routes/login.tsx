@@ -72,50 +72,96 @@ function LoginPage() {
         width: "100%",
         backgroundImage: `url(${loginBg})`,
         backgroundSize: "cover",
-        backgroundPosition: "center",
+        backgroundPosition: isMobile ? "70% center" : "center",
         backgroundRepeat: "no-repeat",
+        backgroundColor: "#04101f",
         color: "#e6f1ff",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         overflow: "hidden",
+        display: isMobile ? "flex" : "block",
+        flexDirection: isMobile ? "column" : undefined,
+        alignItems: isMobile ? "center" : undefined,
+        padding: isMobile ? "24px 18px 32px" : 0,
+        boxSizing: "border-box",
       }}
     >
-      {/* Hot Letters logo, top-left */}
+      {isMobile && (
+        <div
+          aria-hidden
+          style={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(180deg, rgba(4,16,31,0.55) 0%, rgba(4,16,31,0.85) 60%, rgba(4,16,31,0.95) 100%)",
+            zIndex: 1,
+          }}
+        />
+      )}
+
+      {/* Hot Letters logo */}
       <img
         src={hotLettersLogo}
         alt="Hot Letters"
         width={1536}
         height={1024}
-        style={{
-          position: "absolute",
-          top: "3vh",
-          left: "3vw",
-          width: "min(280px, 22vw)",
-          height: "auto",
-          filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
-          pointerEvents: "none",
-          zIndex: 2,
-        }}
+        style={
+          isMobile
+            ? {
+                position: "relative",
+                width: "min(260px, 70vw)",
+                height: "auto",
+                marginTop: 8,
+                marginBottom: 24,
+                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
+                pointerEvents: "none",
+                zIndex: 2,
+              }
+            : {
+                position: "absolute",
+                top: "3vh",
+                left: "3vw",
+                width: "min(280px, 22vw)",
+                height: "auto",
+                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
+                pointerEvents: "none",
+                zIndex: 2,
+              }
+        }
       />
 
-      {/* Form aligned over the baked-in LOG IN area on the right
-          card, leaving the Astralnaut Studios crest + wordmark above
-          fully visible. */}
+      {/* Form: anchored to the baked-in card on desktop, centered on mobile */}
       <form
         onSubmit={submit}
-        style={{
-          position: "absolute",
-          top: "52%",
-          right: "4.5%",
-          width: "min(360px, 30vw)",
-          padding: "20px 22px 22px",
-          background: "rgba(8, 18, 36, 0.55)",
-          border: "1px solid rgba(120, 180, 255, 0.25)",
-          borderRadius: 12,
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
-          boxShadow: "0 16px 50px rgba(0,0,0,0.45)",
-          zIndex: 2,
-        }}
+        style={
+          isMobile
+            ? {
+                position: "relative",
+                width: "100%",
+                maxWidth: 380,
+                padding: "22px 20px 24px",
+                background: "rgba(8, 18, 36, 0.78)",
+                border: "1px solid rgba(120, 180, 255, 0.25)",
+                borderRadius: 14,
+                backdropFilter: "blur(8px)",
+                WebkitBackdropFilter: "blur(8px)",
+                boxShadow: "0 16px 50px rgba(0,0,0,0.55)",
+                zIndex: 2,
+              }
+            : {
+                position: "absolute",
+                top: "52%",
+                right: "4.5%",
+                width: "min(360px, 30vw)",
+                padding: "20px 22px 22px",
+                background: "rgba(8, 18, 36, 0.55)",
+                border: "1px solid rgba(120, 180, 255, 0.25)",
+                borderRadius: 12,
+                backdropFilter: "blur(6px)",
+                WebkitBackdropFilter: "blur(6px)",
+                boxShadow: "0 16px 50px rgba(0,0,0,0.45)",
+                zIndex: 2,
+              }
+        }
       >
         <h1
           style={{
