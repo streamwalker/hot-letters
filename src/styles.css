@@ -289,48 +289,51 @@
   animation: city-beacon 3.5s ease-in-out infinite;
 }
 
-/* Ships drifting across the sky on gentle curved paths */
+/* Ships drifting across the cityscape window on gentle curved paths.
+   Animates `left` (% of container) for horizontal travel and `transform:
+   translateY(...)` for the gentle wave, so the inner <img> can keep its
+   own scaleX(±1) facing without being overridden. */
 @keyframes ship-curve-ltr-a {
-  0%   { transform: translate(-25vw, 0); opacity: 0; }
+  0%   { left: -25%; transform: translateY(0); opacity: 0; }
   8%   { opacity: var(--ship-op, 0.85); }
-  25%  { transform: translate(11vw, -18px); }
-  50%  { transform: translate(47vw, -34px); }
-  75%  { transform: translate(83vw, -12px); }
+  25%  { left: 12%;  transform: translateY(-14px); }
+  50%  { left: 47%;  transform: translateY(-26px); }
+  75%  { left: 78%;  transform: translateY(-10px); }
   92%  { opacity: var(--ship-op, 0.85); }
-  100% { transform: translate(120vw, 6px); opacity: 0; }
+  100% { left: 125%; transform: translateY(4px); opacity: 0; }
 }
 @keyframes ship-curve-ltr-b {
-  0%   { transform: translate(-25vw, 0); opacity: 0; }
+  0%   { left: -25%; transform: translateY(0); opacity: 0; }
   8%   { opacity: var(--ship-op, 0.85); }
-  25%  { transform: translate(11vw, 22px); }
-  50%  { transform: translate(47vw, 38px); }
-  75%  { transform: translate(83vw, 16px); }
+  25%  { left: 12%;  transform: translateY(16px); }
+  50%  { left: 47%;  transform: translateY(28px); }
+  75%  { left: 78%;  transform: translateY(12px); }
   92%  { opacity: var(--ship-op, 0.85); }
-  100% { transform: translate(120vw, -8px); opacity: 0; }
+  100% { left: 125%; transform: translateY(-6px); opacity: 0; }
 }
 @keyframes ship-curve-rtl-a {
-  0%   { transform: translate(120vw, 0) scaleX(-1); opacity: 0; }
+  0%   { left: 125%; transform: translateY(0); opacity: 0; }
   8%   { opacity: var(--ship-op, 0.85); }
-  25%  { transform: translate(83vw, -16px) scaleX(-1); }
-  50%  { transform: translate(47vw, -30px) scaleX(-1); }
-  75%  { transform: translate(11vw, -10px) scaleX(-1); }
+  25%  { left: 78%;  transform: translateY(-12px); }
+  50%  { left: 47%;  transform: translateY(-24px); }
+  75%  { left: 12%;  transform: translateY(-8px); }
   92%  { opacity: var(--ship-op, 0.85); }
-  100% { transform: translate(-25vw, 6px) scaleX(-1); opacity: 0; }
+  100% { left: -25%; transform: translateY(4px); opacity: 0; }
 }
 @keyframes ship-curve-rtl-b {
-  0%   { transform: translate(120vw, 0) scaleX(-1); opacity: 0; }
+  0%   { left: 125%; transform: translateY(0); opacity: 0; }
   8%   { opacity: var(--ship-op, 0.85); }
-  25%  { transform: translate(83vw, 20px) scaleX(-1); }
-  50%  { transform: translate(47vw, 40px) scaleX(-1); }
-  75%  { transform: translate(11vw, 18px) scaleX(-1); }
+  25%  { left: 78%;  transform: translateY(14px); }
+  50%  { left: 47%;  transform: translateY(30px); }
+  75%  { left: 12%;  transform: translateY(12px); }
   92%  { opacity: var(--ship-op, 0.85); }
-  100% { transform: translate(-25vw, -6px) scaleX(-1); opacity: 0; }
+  100% { left: -25%; transform: translateY(-4px); opacity: 0; }
+}
+.ship-wrap {
+  filter: drop-shadow(0 0 8px rgba(120,200,255,0.35));
 }
 .ship {
-  position: absolute;
   pointer-events: none;
-  filter: drop-shadow(0 0 8px rgba(120,200,255,0.35));
-  will-change: transform, opacity;
 }
 
 /* Points of light moving in slow curved paths */
