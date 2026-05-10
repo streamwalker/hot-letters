@@ -142,3 +142,30 @@
     color: var(--color-foreground);
   }
 }
+
+/* Login page: keep autofilled inputs visually consistent with the dark
+   glass form, so password managers (Chrome/Safari/1Password/etc.) don't
+   paint a bright yellow/blue background or black text over our theme. */
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus,
+.login-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #e6f1ff;
+  caret-color: #e6f1ff;
+  /* Long transition delays UA's autofill background swap indefinitely. */
+  transition: background-color 9999s ease-in-out 0s;
+  -webkit-box-shadow: 0 0 0 1000px rgba(8, 18, 36, 0.95) inset;
+  box-shadow: 0 0 0 1000px rgba(8, 18, 36, 0.95) inset;
+  border: 1px solid rgba(120, 180, 255, 0.45) !important;
+  border-radius: 10px;
+  font-family: inherit;
+}
+
+.login-input::placeholder {
+  color: rgba(169, 194, 230, 0.6);
+}
+
+.login-input:focus {
+  border-color: rgba(120, 180, 255, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(120, 180, 255, 0.18);
+}
