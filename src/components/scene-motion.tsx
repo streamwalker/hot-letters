@@ -69,52 +69,75 @@ export function CityTwinkle() {
   );
 }
 
-/* ---------- Drifting ships ---------- */
+/* ---------- Drifting ships ----------
+   Constrained to the cityscape "window" region of the bg art (right of the
+   left console panels, left of the login form). Each wrapper handles the
+   curve animation; the inner <img> handles facing so the ship's nose
+   always points the way it's flying. */
 export function Ships({ count = 5, faint = false }: { count?: number; faint?: boolean }) {
   const ships = Array.from({ length: count }, (_, i) => {
     const isLarge = i === 0;
     const dir: "ltr" | "rtl" = i % 2 === 0 ? "ltr" : "rtl";
     const variant = rnd(i * 13.7) > 0.5 ? "a" : "b";
-    const baseSize = isLarge ? 280 : 70 + Math.floor(rnd(i * 3.7) * 80); // 70–150
+    const baseSize = isLarge ? 280 : 70 + Math.floor(rnd(i * 3.7) * 80);
     const opacity = (faint ? 0.25 : 0.85) * (isLarge ? 1 : 0.9);
+    // Asset orientations differ: ship-small.png nose points right, but
+    // ship-large.png nose points left. Flip so nose matches travel direction.
+    const noseRight = !isLarge;
+    const flip = dir === "ltr" ? !noseRight : noseRight;
     return {
       i,
       src: isLarge ? shipLarge : shipSmall,
       size: baseSize,
-      top: `${4 + rnd(i * 5.3) * 22}%`, // upper sky band
+      top: `${6 + rnd(i * 5.3) * 28}%`,
       dur: isLarge ? 75 : 30 + rnd(i * 9.1) * 25,
       delay: -rnd(i * 11.7) * 30,
       anim: `ship-curve-${dir}-${variant}`,
       opacity,
+      flip,
     };
   });
   return (
     <div
       aria-hidden
+      className="ships-window"
       style={{
         position: "absolute",
-        inset: 0,
+        left: "42%",
+        right: "14%",
+        top: "5%",
+        height: "55%",
         zIndex: 1,
         pointerEvents: "none",
         overflow: "hidden",
       }}
     >
       {ships.map((s) => (
-        <img
+        <div
           key={s.i}
-          src={s.src}
-          alt=""
-          className="ship"
-          loading="lazy"
+          className="ship-wrap"
           style={{
+            position: "absolute",
             top: s.top,
             left: 0,
-            width: s.size,
-            height: "auto",
             ["--ship-op" as string]: String(s.opacity),
             animation: `${s.anim} ${s.dur}s ease-in-out ${s.delay}s infinite`,
+            willChange: "left, transform, opacity",
           } as CSSProperties}
-        />
+        >
+          <img
+            src={s.src}
+            alt=""
+            className="ship"
+            loading="lazy"
+            style={{
+              display: "block",
+              width: s.size,
+              height: "auto",
+              transform: s.flip ? "scaleX(-1)" : undefined,
+            }}
+          />
+        </div>
       ))}
     </div>
   );
