@@ -168,6 +168,49 @@ function Letterer() {
         <span aria-hidden="true">⎋</span>
         {signingOut ? "Signing out…" : "Log out"}
       </button>
+      {signingOut && (
+        <div
+          role="alertdialog"
+          aria-busy="true"
+          aria-live="assertive"
+          aria-label="Signing out"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 3000,
+            background: "rgba(8, 18, 36, 0.65)",
+            backdropFilter: "blur(4px)",
+            WebkitBackdropFilter: "blur(4px)",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 14,
+            color: "#e6f1ff",
+            fontFamily:
+              "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+            cursor: "wait",
+          }}
+          // Block keyboard interaction with the page below.
+          onKeyDownCapture={(e) => e.preventDefault()}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: "3px solid rgba(230, 241, 255, 0.25)",
+              borderTopColor: "#e6f1ff",
+              animation: "letterer-spin 0.8s linear infinite",
+            }}
+          />
+          <span style={{ fontSize: 13, letterSpacing: 1, fontWeight: 600 }}>
+            Signing out…
+          </span>
+          <style>{`@keyframes letterer-spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
