@@ -345,6 +345,22 @@ function Letterer() {
         </div>
       )}
       <HologramEmitter />
+      <AmbientShips />
+      <ConsoleScreen
+        tint="cyan"
+        label="SYS"
+        width={14}
+        rows={3}
+        intervalMs={520}
+        style={{
+          position: "fixed",
+          right: 12,
+          bottom: 12,
+          width: 120,
+          zIndex: 1500,
+          opacity: 0.55,
+        }}
+      />
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
