@@ -1,37 +1,54 @@
 ## Goal
 
-Add a small control panel to the dashboard that lets the user adjust the hologram emitter's **glow intensity** and **beam rotation speed** in real time, with the choice persisted across reloads.
+Make the hologram emitter pick its color palette automatically from the active dashboard theme (the `.dark` class on `<html>`, falling back to `prefers-color-scheme`). It should switch live when the theme flips — no reload needed.
 
-## Changes
+## Approach
+
+Drive every hologram color through CSS custom properties set on the emitter root, then expose two palettes via a small `useTheme` hook. All colors flow through variables so the existing structure (keyframes, gradients, sliders) keeps working untouched.
+
+### Palette
+
+| Token              | Dark (today)             | Light (new)               |
+|--------------------|--------------------------|---------------------------|
+| `--holo-core`      | `180,230,255` (icy blue) | `255,235,200` (warm core) |
+| `--holo-glow-rgb`  | `120,200,255`            | `120,90,210` (indigo)     |
+| `--holo-base-1`    | `#9ad6ff`                | `#fff4d6`                 |
+| `--holo-base-2`    | `#3a8fd1`                | `#a07ad8`                 |
+| `--holo-base-3`    | `#0a2540`                | `#3b1f6b`                 |
+| `--holo-border`    | `150,220,255,0.6`        | `120,90,210,0.55`         |
+
+The light palette uses indigo/violet so the hologram still reads as a glowing object against a bright background instead of vanishing into pale blue.
+
+### Code changes
 
 **`src/routes/_authenticated/index.tsx`**
 
-1. Lift two pieces of state into `Letterer`:
-   - `glow` — number `0–2` (multiplier on box-shadow spread/opacity), default `1`.
-   - `speed` — number `0.2–4` (multiplier on rotation; rotation duration = `6s / speed`), default `1`.
-   Both initialized from `localStorage` (`holo-glow`, `holo-speed`) with safe parse + fallback. Persist on change via `useEffect`.
+1. Add a small `useTheme()` hook in the same file (no new files):
+   - State `"dark" | "light"`, initialized from `document.documentElement.classList.contains("dark")` then `prefers-color-scheme`, defaulting to dark to match today.
+   - `MutationObserver` on `<html>` for `class` attribute changes → updates state when login or any future toggle flips the class.
+   - `matchMedia("(prefers-color-scheme: dark)")` listener for OS-level changes (only used when the explicit class isn't present).
+   - SSR-safe (returns `"dark"` on server).
 
-2. Pass `glow` and `speed` as props into `<HologramEmitter />`. Remove the `aria-hidden="true"` on the emitter root (the controls inside need to be focusable) — keep `aria-hidden` on the purely decorative beam/dots/base children, and add `pointerEvents: "auto"` only on the controls panel container.
+2. `HologramEmitter` accepts no new prop; calls `useTheme()` internally.
+   - Builds a `palette` object based on theme.
+   - Sets CSS variables on the root wrapper `<div>` via `style={{ ["--holo-core"]: palette.core, ... }}`.
+   - Replaces hardcoded `rgba(120,200,255,...)`, `rgba(180,230,255,...)` literals in the inline `<style>` block, beam `conic-gradient`, base `radial-gradient`, dot `background`/`boxShadow`, and border with `rgb(var(--holo-glow-rgb) / <alpha>)` / `var(--holo-base-1)` etc.
+   - The existing `glow` and `speed` props keep working — alpha multipliers wrap the same variables.
 
-3. Inside `HologramEmitter`:
-   - Compute `beamDuration = 6 / speed` (seconds), apply via inline `animationDuration` on the beam (replaces the hardcoded `6s` in the existing `animation` shorthand). Keep flicker keyframe duration fixed.
-   - Drive the base pulse glow + dot shadow via a CSS variable `--holo-glow` set on the root (e.g. `style={{ "--holo-glow": glow }}`) and update the `<style>` block keyframes / inline `boxShadow` rules to multiply alpha and spread by `var(--holo-glow)`. Simplest impl: inline `boxShadow` on `.holo-base` using template strings derived from `glow` (e.g. `0 0 ${14*glow}px ${2*glow}px rgba(120,200,255,${0.55*glow})`), and remove the keyframe pulse OR keep pulse keyframe but multiply its values via JS-built `<style>` text.
-   - Reduced-motion: continue to pause animations; speed slider has no effect when motion is reduced (note in label tooltip).
+3. `HologramControls` panel: also theme-adaptive surface. Replace the hardcoded deep-navy `background`/`color`/`border` with theme-derived values (dark: today's deep navy; light: white-glass `rgba(255,255,255,0.85)` with indigo border + dark text). Reuses the same `useTheme()` hook.
 
-4. Add a new `<HologramControls />` panel:
-   - Position: `fixed`, just above the emitter (e.g. `left: 16, bottom: 190`), small frosted glass card matching the existing sign-out / dialog visual style (deep navy, blue border, subtle shadow), `zIndex: 1500`, `pointerEvents: "auto"`.
-   - Two `<input type="range">` rows with text labels and live numeric value display:
-     - "Glow" — min `0`, max `2`, step `0.05`.
-     - "Speed" — min `0.2`, max `4`, step `0.1`.
-   - A small "Reset" text button that restores defaults (`1`, `1`).
-   - A collapse/expand toggle (chevron) so the panel can be hidden to a tiny pill if it gets in the way; collapsed state also persisted in localStorage (`holo-controls-open`).
-   - Accessibility: each slider has an associated `<label htmlFor>`, `aria-valuetext` showing the friendly value (e.g. "1.5×"), and the panel has `role="group"` with `aria-label="Hologram controls"`. Keyboard arrow keys work natively on range inputs.
+### Edge cases
 
-## Files touched
+- No theme toggle on the dashboard yet — the hook still works because login sets the class and it persists across navigation. If the user later adds a dashboard toggle, this code automatically reacts.
+- Reduced-motion: unchanged; only colors are theme-driven, not animations.
+- Slider keyframes: the `<style>` template is regenerated whenever `glow` changes, so it picks up theme variables on every render — no stale color issue.
 
-- `src/routes/_authenticated/index.tsx` (only file changed)
+### Files touched
 
-## Out of scope
+- `src/routes/_authenticated/index.tsx` (only)
 
-- No styling token changes, no new dependencies, no other components affected.
-- The login page hologram references aren't in scope — only the dashboard emitter has these controls.
+### Out of scope
+
+- Login-page hologram styling (none exists; the login uses a different scene).
+- Adding a dashboard theme toggle UI.
+- Tuning the color tokens in `src/styles.css` — palette lives inline with the component since it's specific to the hologram.

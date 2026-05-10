@@ -423,7 +423,68 @@ function Letterer() {
   );
 }
 
+/** Reads the active theme from <html> class, with prefers-color-scheme as
+ * fallback, and updates live when either changes. SSR-safe (returns "dark"). */
+function useTheme(): "dark" | "light" {
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  useEffect(() => {
+    const root = document.documentElement;
+    const compute = (): "dark" | "light" => {
+      if (root.classList.contains("dark")) return "dark";
+      if (root.classList.contains("light")) return "light";
+      return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light";
+    };
+    setTheme(compute());
+    const mo = new MutationObserver(() => setTheme(compute()));
+    mo.observe(root, { attributes: true, attributeFilter: ["class"] });
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const onMq = () => setTheme(compute());
+    mq.addEventListener("change", onMq);
+    return () => {
+      mo.disconnect();
+      mq.removeEventListener("change", onMq);
+    };
+  }, []);
+  return theme;
+}
+
+type HoloPalette = {
+  /** rgb triplet for the bright core (dot fill, beam highlight). */
+  core: string;
+  /** rgb triplet for the surrounding glow (shadows, beam wash). */
+  glow: string;
+  /** Three-stop colors for the radial-gradient base. */
+  base1: string;
+  base2: string;
+  base3: string;
+  /** rgba border on the emitter base. */
+  border: string;
+};
+
+const HOLO_PALETTES: Record<"dark" | "light", HoloPalette> = {
+  dark: {
+    core: "180,230,255",
+    glow: "120,200,255",
+    base1: "#9ad6ff",
+    base2: "#3a8fd1",
+    base3: "#0a2540",
+    border: "rgba(150,220,255,0.6)",
+  },
+  light: {
+    core: "255,235,200",
+    glow: "120,90,210",
+    base1: "#fff4d6",
+    base2: "#a07ad8",
+    base3: "#3b1f6b",
+    border: "rgba(120,90,210,0.55)",
+  },
+};
+
 function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: number }) {
+  const theme = useTheme();
+  const p = HOLO_PALETTES[theme];
   // 12 floating dots with deterministic positions/delays so SSR + CSR match.
   const dots = Array.from({ length: 12 }, (_, i) => {
     const angle = (i / 12) * Math.PI * 2;
@@ -461,8 +522,8 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           50%      { opacity: ${Math.min(1, 0.85 * glow).toFixed(3)}; }
         }
         @keyframes holo-base-pulse-dyn {
-          0%, 100% { box-shadow: 0 0 ${s(14)}px ${s(2)}px rgba(120,200,255,${a(0.55).toFixed(3)}), 0 0 ${s(28)}px ${s(6)}px rgba(120,200,255,${a(0.25).toFixed(3)}); }
-          50%      { box-shadow: 0 0 ${s(22)}px ${s(4)}px rgba(150,220,255,${a(0.85).toFixed(3)}), 0 0 ${s(44)}px ${s(10)}px rgba(120,200,255,${a(0.4).toFixed(3)}); }
+          0%, 100% { box-shadow: 0 0 ${s(14)}px ${s(2)}px rgba(${p.glow},${a(0.55).toFixed(3)}), 0 0 ${s(28)}px ${s(6)}px rgba(${p.glow},${a(0.25).toFixed(3)}); }
+          50%      { box-shadow: 0 0 ${s(22)}px ${s(4)}px rgba(${p.core},${a(0.85).toFixed(3)}), 0 0 ${s(44)}px ${s(10)}px rgba(${p.glow},${a(0.4).toFixed(3)}); }
         }
         @keyframes holo-dot-orbit {
           0%   { transform: translate(0,0) scale(1);   opacity: 0; }
@@ -487,12 +548,11 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           height: 130,
           transform: "translateX(-50%)",
           transformOrigin: "50% 100%",
-          background:
-            "conic-gradient(from 0deg, rgba(120,200,255,0) 0deg, rgba(120,200,255,0.55) 30deg, rgba(180,230,255,0.15) 60deg, rgba(120,200,255,0) 120deg, rgba(120,200,255,0) 360deg)",
+          background: `conic-gradient(from 0deg, rgba(${p.glow},0) 0deg, rgba(${p.glow},0.55) 30deg, rgba(${p.core},0.15) 60deg, rgba(${p.glow},0) 120deg, rgba(${p.glow},0) 360deg)`,
           clipPath: "polygon(50% 100%, 0% 0%, 100% 0%)",
           filter: "blur(1px)",
           animation: `holo-beam-rotate ${beamDur}s linear infinite, holo-beam-flicker 2.4s ease-in-out infinite`,
-          mixBlendMode: "screen",
+          mixBlendMode: theme === "dark" ? "screen" : "multiply",
         }}
       />
 
@@ -509,8 +569,8 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
             height: 4,
             marginLeft: -2,
             borderRadius: "50%",
-            background: `rgba(180,230,255,${a(0.95).toFixed(3)})`,
-            boxShadow: `0 0 ${s(6)}px ${s(2)}px rgba(120,200,255,${a(0.7).toFixed(3)})`,
+            background: `rgba(${p.core},${a(0.95).toFixed(3)})`,
+            boxShadow: `0 0 ${s(6)}px ${s(2)}px rgba(${p.glow},${a(0.7).toFixed(3)})`,
             ["--dx" as string]: `${d.x}px`,
             ["--dy" as string]: `${d.y}px`,
             animation: `holo-dot-orbit ${d.dur}s ease-in-out ${d.delay}s infinite`,
@@ -529,9 +589,8 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
           height: 14,
           transform: "translateX(-50%)",
           borderRadius: "50%",
-          background:
-            "radial-gradient(ellipse at center, #9ad6ff 0%, #3a8fd1 55%, #0a2540 100%)",
-          border: "1px solid rgba(150,220,255,0.6)",
+          background: `radial-gradient(ellipse at center, ${p.base1} 0%, ${p.base2} 55%, ${p.base3} 100%)`,
+          border: `1px solid ${p.border}`,
           animation: "holo-base-pulse-dyn 2.8s ease-in-out infinite",
         }}
       />
@@ -558,20 +617,30 @@ function HologramControls({
   onToggle,
   onReset,
 }: HologramControlsProps) {
+  const theme = useTheme();
   const fmt = (n: number) => `${n.toFixed(2)}×`;
+  const isDark = theme === "dark";
+  const surface = {
+    bg: isDark ? "rgba(20, 26, 38, 0.85)" : "rgba(255, 255, 255, 0.88)",
+    fg: isDark ? "#e6f1ff" : "#1a1d23",
+    muted: isDark ? "#a9c2e6" : "#5a6478",
+    border: isDark ? "rgba(120, 180, 255, 0.3)" : "rgba(120, 90, 210, 0.35)",
+    shadow: isDark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(60,30,120,0.18)",
+    accent: isDark ? "#7ec1ff" : "#7855d6",
+  };
   const panelBase: React.CSSProperties = {
     position: "fixed",
     left: 16,
     bottom: 188,
     zIndex: 1600,
     pointerEvents: "auto",
-    background: "rgba(20, 26, 38, 0.85)",
-    color: "#e6f1ff",
-    border: "1px solid rgba(120, 180, 255, 0.3)",
+    background: surface.bg,
+    color: surface.fg,
+    border: `1px solid ${surface.border}`,
     borderRadius: 10,
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+    boxShadow: surface.shadow,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     fontSize: 11,
     letterSpacing: 0.3,
@@ -616,7 +685,7 @@ function HologramControls({
           title="Collapse"
           style={{
             background: "transparent",
-            color: "#a9c2e6",
+            color: surface.muted,
             border: 0,
             cursor: "pointer",
             padding: 2,
@@ -631,7 +700,7 @@ function HologramControls({
       <label htmlFor="holo-glow" style={{ display: "block", marginBottom: 2 }}>
         <span style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Glow</span>
-          <span style={{ color: "#a9c2e6" }}>{fmt(glow)}</span>
+          <span style={{ color: surface.muted }}>{fmt(glow)}</span>
         </span>
       </label>
       <input
@@ -643,13 +712,13 @@ function HologramControls({
         value={glow}
         onChange={(e) => onGlow(Number.parseFloat(e.target.value))}
         aria-valuetext={fmt(glow)}
-        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+        style={{ width: "100%", accentColor: surface.accent, marginBottom: 8 }}
       />
 
       <label htmlFor="holo-speed" style={{ display: "block", marginBottom: 2 }}>
         <span style={{ display: "flex", justifyContent: "space-between" }}>
           <span>Speed</span>
-          <span style={{ color: "#a9c2e6" }}>{fmt(speed)}</span>
+          <span style={{ color: surface.muted }}>{fmt(speed)}</span>
         </span>
       </label>
       <input
@@ -662,7 +731,7 @@ function HologramControls({
         onChange={(e) => onSpeed(Number.parseFloat(e.target.value))}
         aria-valuetext={fmt(speed)}
         title="Beam rotation speed (no effect with reduced motion)"
-        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+        style={{ width: "100%", accentColor: surface.accent, marginBottom: 8 }}
       />
 
       <button
@@ -670,8 +739,8 @@ function HologramControls({
         onClick={onReset}
         style={{
           background: "transparent",
-          color: "#a9c2e6",
-          border: "1px solid rgba(120,180,255,0.3)",
+          color: surface.muted,
+          border: `1px solid ${surface.border}`,
           borderRadius: 6,
           padding: "4px 10px",
           fontSize: 11,
