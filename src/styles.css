@@ -183,9 +183,10 @@
 .login-overlay {
   background: linear-gradient(
     180deg,
-    rgba(7, 24, 47, 0.5) 0%,
-    rgba(7, 24, 47, 0.82) 60%,
-    rgba(7, 24, 47, 0.95) 100%
+    rgba(7, 24, 47, 0) 0%,
+    rgba(7, 24, 47, 0.55) 35%,
+    rgba(7, 24, 47, 0.9) 70%,
+    #07182f 100%
   );
 }
 @media (prefers-color-scheme: dark) {
