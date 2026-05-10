@@ -479,3 +479,22 @@ function HologramEmitter() {
     </div>
   );
 }
+
+function AmbientShips() {
+  // Fixed full-viewport layer; sits behind the editor chrome which uses
+  // higher z-indexes in letterer.css. Faint so it doesn't distract.
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1,
+        pointerEvents: "none",
+        overflow: "hidden",
+      }}
+    >
+      <Ships count={3} faint />
+    </div>
+  );
+}
