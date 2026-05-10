@@ -1,14 +1,17 @@
 ## Goal
-Triple the displayed size of the Hot Letters logo on `/login` (i.e. 200% larger = 3× current size), in both desktop and mobile layouts.
+Replace the existing login background image with the newly uploaded `Comic_Letterer_Dashboard.png`, keeping the current overlay layout (Hot Letters logo top-left, glass login card aligned over the baked-in Astralnaut Studios card on the right, and the mobile-responsive stacked variant).
 
-## Change
-In `src/routes/login.tsx`, update the `<img src={hotLettersLogo} />` inline styles:
+## Steps
 
-- **Mobile**: `width: "min(260px, 70vw)"` → `width: "min(780px, 90vw)"` (capped at 90vw so it never overflows the viewport on small screens). Also bump `marginBottom` from `24` to `16` to keep the form comfortably below.
-- **Desktop**: `width: "min(280px, 22vw)"` → `width: "min(840px, 66vw)"`. Keep `top: "3vh"` and `left: "3vw"` so it stays anchored top-left.
+1. **Copy the upload** into project assets, overwriting the current background:
+   - `user-uploads://Comic_Letterer_Dashboard.png` → `src/assets/login-bg.png` (overwrite)
+   - Keep the same filename so no import changes are needed in `src/routes/login.tsx`.
 
-No other changes — positioning logic, drop-shadow, alt text, and the rest of the page stay identical.
+2. **Verify alignment is still correct.** The new image has the same composition as the previous one (same Astralnaut Studios card position on the right, same logo placement on the left). The existing form positioning (`top: 52%`, `right: 4.5%`, `width: min(360px, 30vw)`) and desktop logo position (`top: 3vh`, `left: 3vw`) should still line up. If after swapping the form drifts off the baked-in card area, nudge `top` / `right` / `width` values in `src/routes/login.tsx` only.
+
+3. **No other code changes.** Mobile layout, autofill styles, tap targets, and accessibility labels all stay as-is.
 
 ## Out of scope
-- Repositioning the logo
-- Changing the login form, background, or any other element
+- Redesigning the login form
+- Changing colors, typography, or the Hot Letters logo
+- Touching anything outside the `/login` route
