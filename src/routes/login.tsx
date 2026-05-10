@@ -18,12 +18,13 @@ function safeRedirectPath(raw: unknown): string {
   return raw;
 }
 
-type LoginSearch = { redirect: string };
+type LoginSearch = { redirect: string; signedOut?: boolean };
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     redirect: safeRedirectPath(search.redirect),
+    signedOut: search.signedOut === "1" || search.signedOut === true,
   }),
   beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { redirect: redirectTo } = Route.useSearch();
+  const { redirect: redirectTo, signedOut } = Route.useSearch();
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 720px)");
@@ -44,14 +45,33 @@ function LoginPage() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+  useEffect(() => {
+    if (!signedOut) return;
+    // Strip ?signedOut=1 so a refresh doesn't re-show the banner.
+    navigate({
+      to: "/login",
+      search: { redirect: redirectTo },
+      replace: true,
+    });
+    const t = window.setTimeout(() => {
+      setSuccess(null);
+      setStatusMessage("");
+    }, 3500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(
+    signedOut ? "Signed out successfully. See you soon!" : null,
+  );
   const [busy, setBusy] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState(
+    signedOut ? "Signed out successfully." : "",
+  );
   const statusRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
   const redirectingRef = useRef(false);
