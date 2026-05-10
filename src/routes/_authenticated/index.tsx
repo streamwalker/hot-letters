@@ -173,10 +173,61 @@ function Letterer() {
     }
 
     window.addEventListener("letterer:change", scheduleSave);
+
+    // ----- Hologram pulse wiring ---------------------------------------
+    // Map action buttons → pulse kinds. Capture phase so we fire even if
+    // the inner handler stops propagation. Cooldown prevents flooding.
+    const BTN_KINDS: Record<string, "save" | "export" | "parse" | "balloon"> = {
+      "btn-save": "save",
+      "btn-export-png": "export",
+      "btn-parse": "parse",
+      "btn-parse-ai": "parse",
+      "btn-parse-photo": "parse",
+      "btn-add-balloon": "balloon",
+    };
+    const STRENGTH: Record<string, number> = {
+      save: 1.0, export: 1.0, parse: 0.8, balloon: 0.5, autosave: 0.35,
+    };
+    const lastPulseAt: Record<string, number> = {};
+    const COOLDOWN_MS = 250;
+    function firePulse(kind: string) {
+      const now = Date.now();
+      if (now - (lastPulseAt[kind] ?? 0) < COOLDOWN_MS) return;
+      lastPulseAt[kind] = now;
+      window.dispatchEvent(
+        new CustomEvent("holo:pulse", {
+          detail: { kind, strength: STRENGTH[kind] ?? 0.6 },
+        }),
+      );
+    }
+    function onClickCapture(e: Event) {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      const btn = target.closest?.("button, label") as HTMLElement | null;
+      if (!btn?.id) return;
+      const kind = BTN_KINDS[btn.id];
+      if (kind) firePulse(kind);
+    }
+    document.addEventListener("click", onClickCapture, true);
+    // Autosave pulse — debounced separately from cooldown.
+    let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+    function onAutosaveChange() {
+      if (autosaveTimer) return;
+      autosaveTimer = setTimeout(() => {
+        autosaveTimer = null;
+        firePulse("autosave");
+      }, 600);
+    }
+    window.addEventListener("letterer:change", onAutosaveChange);
+    // -------------------------------------------------------------------
+
     init();
 
     return () => {
       window.removeEventListener("letterer:change", scheduleSave);
+      window.removeEventListener("letterer:change", onAutosaveChange);
+      document.removeEventListener("click", onClickCapture, true);
+      if (autosaveTimer) clearTimeout(autosaveTimer);
       if (saveTimer) clearTimeout(saveTimer);
       s1.remove();
       s2.remove();
