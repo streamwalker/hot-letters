@@ -617,20 +617,30 @@ function HologramControls({
   onToggle,
   onReset,
 }: HologramControlsProps) {
+  const theme = useTheme();
   const fmt = (n: number) => `${n.toFixed(2)}×`;
+  const isDark = theme === "dark";
+  const surface = {
+    bg: isDark ? "rgba(20, 26, 38, 0.85)" : "rgba(255, 255, 255, 0.88)",
+    fg: isDark ? "#e6f1ff" : "#1a1d23",
+    muted: isDark ? "#a9c2e6" : "#5a6478",
+    border: isDark ? "rgba(120, 180, 255, 0.3)" : "rgba(120, 90, 210, 0.35)",
+    shadow: isDark ? "0 8px 24px rgba(0,0,0,0.45)" : "0 8px 24px rgba(60,30,120,0.18)",
+    accent: isDark ? "#7ec1ff" : "#7855d6",
+  };
   const panelBase: React.CSSProperties = {
     position: "fixed",
     left: 16,
     bottom: 188,
     zIndex: 1600,
     pointerEvents: "auto",
-    background: "rgba(20, 26, 38, 0.85)",
-    color: "#e6f1ff",
-    border: "1px solid rgba(120, 180, 255, 0.3)",
+    background: surface.bg,
+    color: surface.fg,
+    border: `1px solid ${surface.border}`,
     borderRadius: 10,
     backdropFilter: "blur(8px)",
     WebkitBackdropFilter: "blur(8px)",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+    boxShadow: surface.shadow,
     fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     fontSize: 11,
     letterSpacing: 0.3,
