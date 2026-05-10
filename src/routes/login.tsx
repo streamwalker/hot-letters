@@ -66,7 +66,13 @@ function LoginPage() {
       setSuccess(`Signed in! Redirecting to ${friendly}…`);
       setStatusMessage(`Signed in successfully. Redirecting to ${friendly}.`);
       setBusy(true);
-      window.setTimeout(() => navigate({ to: target, replace: true }), 1200);
+      const REDIRECT_DELAY_MS = 1200;
+      window.setTimeout(() => {
+        // Auto-dismiss the banner as we hand off to the next route.
+        setSuccess(null);
+        setStatusMessage("");
+        navigate({ to: target, replace: true });
+      }, REDIRECT_DELAY_MS);
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate, redirectTo]);
