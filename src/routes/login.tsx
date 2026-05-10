@@ -18,7 +18,7 @@ function safeRedirectPath(raw: unknown): string {
   return raw;
 }
 
-type LoginSearch = { redirect: string };
+type LoginSearch = { redirect: string; signedOut?: boolean };
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
