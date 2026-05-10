@@ -1,5 +1,6 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import loginBg from "@/assets/login-bg.png";
 import hotLettersLogo from "@/assets/hot-letters-logo.png";
@@ -45,6 +46,35 @@ function LoginPage() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Theme toggle: lets users preview light vs dark login styling instantly.
+  // Initial value follows the document's existing class (set by app shell or
+  // prior preference), falling back to the OS preference.
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "dark";
+    if (document.documentElement.classList.contains("dark")) return "dark";
+    if (document.documentElement.classList.contains("light")) return "light";
+    try {
+      const stored = window.localStorage.getItem("login-theme-preview");
+      if (stored === "light" || stored === "dark") return stored;
+    } catch {
+      /* ignore */
+    }
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("dark", theme === "dark");
+    root.classList.toggle("light", theme === "light");
+    try {
+      window.localStorage.setItem("login-theme-preview", theme);
+    } catch {
+      /* ignore */
+    }
+  }, [theme]);
+  const toggleTheme = () => setTheme((t) => (t === "dark" ? "light" : "dark"));
   useEffect(() => {
     if (!signedOut) return;
     // Strip ?signedOut=1 so a refresh doesn't re-show the banner.
@@ -193,6 +223,34 @@ function LoginPage() {
           }}
         />
       )}
+
+      {/* Theme preview toggle — lets users flip light/dark instantly. */}
+      <button
+        type="button"
+        onClick={toggleTheme}
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+        title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+        style={{
+          position: "absolute",
+          top: 16,
+          right: 16,
+          zIndex: 5,
+          width: 40,
+          height: 40,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          borderRadius: 999,
+          background: "rgba(8, 18, 36, 0.7)",
+          color: "#e6f1ff",
+          border: "1px solid rgba(120, 180, 255, 0.35)",
+          backdropFilter: "blur(8px)",
+          cursor: "pointer",
+          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
+        }}
+      >
+        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
 
       {/* Hot Letters logo */}
       <img
