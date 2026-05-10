@@ -64,6 +64,10 @@ function LoginPage() {
       ? "dark"
       : "light";
   });
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
@@ -225,33 +229,35 @@ function LoginPage() {
       )}
 
       {/* Theme preview toggle — lets users flip light/dark instantly. */}
-      <button
-        type="button"
-        onClick={toggleTheme}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        style={{
-          position: "absolute",
-          top: 16,
-          right: 16,
-          zIndex: 5,
-          width: 40,
-          height: 40,
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          borderRadius: 999,
-          background: "rgba(8, 18, 36, 0.7)",
-          color: "#e6f1ff",
-          border: "1px solid rgba(120, 180, 255, 0.35)",
-          backdropFilter: "blur(8px)",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
-        }}
-      >
-        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
-
+      {mounted && (
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+          style={{
+            position: "absolute",
+            top: 16,
+            right: 16,
+            zIndex: 5,
+            width: 40,
+            height: 40,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: 999,
+            background: "rgba(8, 18, 36, 0.7)",
+            color: "#e6f1ff",
+            border: "1px solid rgba(120, 180, 255, 0.35)",
+            backdropFilter: "blur(8px)",
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(0, 0, 0, 0.35)",
+            transition: "background 400ms ease, color 400ms ease, border-color 400ms ease",
+          }}
+        >
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+      )}
       {/* Hot Letters logo */}
       <img
         src={hotLettersLogo}

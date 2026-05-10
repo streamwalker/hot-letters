@@ -176,11 +176,16 @@
    slightly; in dark mode we deepen both for richer contrast. */
 .login-logo {
   filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.55));
+  transition: filter 400ms ease;
 }
 .login-bg {
   background-color: #07182f;
+  transition:
+    background-color 400ms ease,
+    color 400ms ease;
 }
 .login-overlay {
+  transition: background 400ms ease;
   background: linear-gradient(
     180deg,
     rgba(7, 24, 47, 0) 0%,
