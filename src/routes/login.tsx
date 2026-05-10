@@ -4,18 +4,38 @@ import { supabase } from "@/integrations/supabase/client";
 import loginBg from "@/assets/login-bg.png";
 import hotLettersLogo from "@/assets/hot-letters-logo.png";
 
+/**
+ * Sanitize a redirect target so we never bounce users to an external URL or
+ * back into /login itself. Only allow same-origin paths that start with a
+ * single "/" (rejects "//evil.com" and protocol-relative URLs).
+ */
+function safeRedirectPath(raw: unknown): string {
+  if (typeof raw !== "string") return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  if (raw === "/login" || raw.startsWith("/login?") || raw.startsWith("/login/")) {
+    return "/";
+  }
+  return raw;
+}
+
+type LoginSearch = { redirect: string };
+
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
-  beforeLoad: async () => {
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    redirect: safeRedirectPath(search.redirect),
+  }),
+  beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
     const { data } = await supabase.auth.getSession();
-    if (data.session) throw redirect({ to: "/" });
+    if (data.session) throw redirect({ to: search.redirect, replace: true });
   },
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { redirect: redirectTo } = Route.useSearch();
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 720px)");
@@ -41,13 +61,15 @@ function LoginPage() {
       if (!session || redirectingRef.current) return;
       redirectingRef.current = true;
       setError(null);
-      setSuccess("Signed in! Redirecting to your dashboard…");
-      setStatusMessage("Signed in successfully. Redirecting to your dashboard.");
+      const target = redirectTo;
+      const friendly = target === "/" ? "your dashboard" : "where you left off";
+      setSuccess(`Signed in! Redirecting to ${friendly}…`);
+      setStatusMessage(`Signed in successfully. Redirecting to ${friendly}.`);
       setBusy(true);
-      window.setTimeout(() => navigate({ to: "/" }), 1200);
+      window.setTimeout(() => navigate({ to: target, replace: true }), 1200);
     });
     return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   // Focus trap: while busy, keep keyboard focus parked on the live status
   // region so Tab/Shift-Tab can't escape the loading state.
