@@ -1,70 +1,37 @@
 ## Goal
+Make the small and large ships drift across the cityscape on the login screen along **gentle curved paths** instead of nearly-straight horizontal lines, while keeping the slow, peaceful pace.
 
-When the user performs a meaningful dashboard action (Save, Export, Parse, Add Balloon, autosave commit), the hologram briefly surges: brighter glow, faster spin, an expanding shockwave ring, and a short color tint keyed to the action category.
+## Changes (all in `src/styles.css`, plus a small tweak in `src/components/scene-motion.tsx`)
 
-## Event contract
+### 1. New curved keyframes (`src/styles.css`)
+Replace the current 3-stop `ship-drift-ltr` / `ship-drift-rtl` keyframes with smoother multi-stop curves that gently rise then dip (or vice versa). Two variants per direction so neighboring ships don't fly in lockstep:
 
-A single `window` custom event drives everything:
+- `ship-curve-ltr-a`: 0% → off-screen left, baseline; 25% → +25vw, −18px; 50% → +50vw, −34px; 75% → +75vw, −12px; 100% → off-screen right, +6px.
+- `ship-curve-ltr-b`: similar but inverted arc (dips down then rises) and slightly different vertical amplitudes (24/40/20px).
+- `ship-curve-rtl-a` / `ship-curve-rtl-b`: mirror versions including `scaleX(-1)` on every stop (current rtl already does this).
+- All keyframes use `cubic-bezier(.45,.05,.55,.95)` style easing applied via the animation declaration (`ease-in-out`) for a gentle, natural arc — no linear timing.
 
-```ts
-window.dispatchEvent(new CustomEvent("holo:pulse", {
-  detail: { kind: "save" | "export" | "parse" | "balloon" | "autosave", strength?: 0..1 }
-}));
+Vertical movement stays subtle (max ~40px) so ships still feel like they're drifting horizontally across the skyline, just on a curve.
+
+### 2. Use eased timing (`src/components/scene-motion.tsx`)
+In `Ships`, change the inline `animation` from `linear` to `ease-in-out`, and pick one of the four curve variants per ship:
+
+```
+const variant = rnd(i * 13.7) > 0.5 ? "a" : "b";
+const name = `ship-curve-${dir}-${variant}`;
+animation: `${name} ${s.dur}s ease-in-out ${s.delay}s infinite`,
 ```
 
-Anything in the app — including future server jobs — can fire this and the hologram reacts. Strength defaults per kind (autosave 0.4, balloon 0.5, parse 0.8, save 1.0, export 1.0).
+Slow the pace slightly so the curves read as graceful (large ship: 75s; small ships: 30–55s instead of 22–40s).
 
-Action → kind mapping (capture-phase click listeners attached on `#letterer-root`):
-
-| Selector              | Kind     | Tint           |
-|-----------------------|----------|----------------|
-| `#btn-save`           | save     | amber          |
-| `#btn-export-png`     | export   | green          |
-| `#btn-parse`, `#btn-parse-ai`, `#btn-parse-photo` | parse | magenta |
-| `#btn-add-balloon`    | balloon  | cyan (default) |
-| `letterer:change` event (autosave) | autosave | amber, low strength |
-
-A short cooldown (~250ms) per kind prevents a flood from rapid clicks or autosave bursts.
-
-## Code changes (only `src/routes/_authenticated/index.tsx`)
-
-### 1. Action wiring (inside the existing `useEffect` that injects the letterer scripts)
-
-After the scripts append, add a delegated capture-phase `click` listener on `document` that maps the matched button id to a `kind` and dispatches `holo:pulse`. Also add a `letterer:change` listener that dispatches `{ kind: "autosave", strength: 0.35 }` (debounced to once per 600ms so it doesn't strobe). Both cleaned up in the existing return.
-
-### 2. `HologramEmitter` reactive pulse state
-
-- New state `pulse: { kind, strength, id } | null`. On `holo:pulse`, set state and start a `setTimeout` (~1100ms) to clear it. New events override the timer (last-write-wins).
-- Compute `effectiveGlow = glow + (pulse?.strength ?? 0) * 1.5` and `effectiveSpeed = speed * (1 + (pulse?.strength ?? 0) * 2.5)`. Both feed the existing `glow`/`speed` math — no other changes to the beam/dots/base rendering.
-- Tint: small `tintMap` from kind → rgb triplet (overrides `palette.glow` for the duration of the pulse via the existing `p.glow` token computation). Falls back to theme palette when no pulse.
-- The CSS keyframe templates already re-render on every `glow` change, so updated colors land instantly.
-
-### 3. Shockwave ring
-
-A new `<span class="holo-shockwave" />` rendered conditionally inside the emitter when `pulse` is truthy:
-- Absolute, centered on the emitter base (left:50%, bottom:6px).
-- 14px square, `border: 2px solid rgba(<tint>, 0.85)`, `border-radius: 50%`.
-- New keyframe `holo-shockwave-expand`: scales from 0.4 → 4 and fades opacity 0.95 → 0 over ~1000ms ease-out.
-- Keyed by `pulse.id` so each pulse remounts and replays the animation cleanly.
-- Hidden under `prefers-reduced-motion` (added to existing reduced-motion media block).
-
-### 4. Pulse log (optional micro-affordance)
-
-Tiny floating chip that appears for ~1.2s above the emitter with the kind label ("SAVED", "EXPORTED", "PARSED", "AUTOSAVED", "BALLOON"). Same fade-in/out timing as the shockwave. Useful feedback when the dashboard is busy and the user might miss the visual surge. Reuses theme tokens from `useTheme()`.
-
-## Behavior tuning
-
-- Cooldown per kind (250ms) and autosave debounce (600ms) keep things from strobing.
-- Pulse strength is additive to the user's slider settings — sliders remain the baseline, pulses transiently overshoot.
-- If user has slider glow at 0, pulses still show (so the feature is never invisible).
-- Reduced motion: only the color tint + chip label fire; no shockwave, no spin-up.
-
-## Files touched
-
-- `src/routes/_authenticated/index.tsx` (only)
+### 3. Reduced motion
+Existing `.ship { animation: none !important; }` block under `prefers-reduced-motion` already covers the new keyframes — no change needed.
 
 ## Out of scope
+- Cityscape windows/beacons, console screens, points-of-light, hologram emitter — untouched.
+- No changes to ship art, count, sizes, opacity, or z-index.
+- No new assets or dependencies.
 
-- Editing `letterer-app.js` or `letterer-bridge.js` — we listen for events they already emit and delegate clicks instead.
-- New audio/haptics.
-- Persisting pulse history.
+## Files touched
+- `src/styles.css` — replace the two ship keyframes with four curved variants.
+- `src/components/scene-motion.tsx` — pick variant per ship and switch to `ease-in-out`.
