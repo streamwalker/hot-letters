@@ -80,26 +80,36 @@ function LoginPage() {
     );
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        if (data.session) {
+          // Auto sign-in (email confirmation disabled). The auth listener
+          // will set the success state and redirect after a short delay.
+          setSuccess("Account created! Redirecting…");
+          setStatusMessage("Account created. Redirecting to your dashboard.");
+          return; // keep busy true until the listener navigates
+        }
         setInfo("Check your email to confirm your account, then sign in.");
         setStatusMessage("Account created. Check your email to confirm.");
         setMode("signin");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // The auth listener will render the success state and navigate.
         setStatusMessage("Signed in successfully.");
+        return; // keep busy true until the listener navigates
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
       setStatusMessage(`Error: ${msg}`);
     } finally {
-      setBusy(false);
+      // Only release busy if we are NOT in the redirect handoff.
+      if (!redirectingRef.current) setBusy(false);
     }
   }
 
