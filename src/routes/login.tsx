@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import loginBg from "@/assets/login-bg.png";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
@@ -58,79 +59,103 @@ function LoginPage() {
     <div
       style={{
         minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        background: "#1a1d23",
-        color: "#e6e9ef",
+        width: "100%",
+        backgroundImage: `url(${loginBg})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
+        color: "#e6f1ff",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        padding: 16,
+        padding: "min(6vw, 80px)",
       }}
     >
       <form
         onSubmit={submit}
         style={{
           width: "100%",
-          maxWidth: 360,
-          background: "#23272f",
-          border: "1px solid #3a414d",
-          borderRadius: 8,
-          padding: 24,
+          maxWidth: 420,
+          background: "rgba(10, 22, 44, 0.55)",
+          border: "1px solid rgba(120, 180, 255, 0.25)",
+          borderRadius: 14,
+          padding: "32px 32px 28px",
+          backdropFilter: "blur(8px)",
+          WebkitBackdropFilter: "blur(8px)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(120,180,255,0.08) inset",
         }}
       >
-        <h1 style={{ margin: 0, fontSize: 18, color: "#f5a623", letterSpacing: 0.5 }}>
-          COMIC BOOK LETTERER
+        <h1
+          style={{
+            margin: 0,
+            fontSize: 28,
+            letterSpacing: 4,
+            textAlign: "center",
+            fontWeight: 700,
+          }}
+        >
+          {mode === "signin" ? "LOG IN" : "SIGN UP"}
         </h1>
-        <p style={{ marginTop: 4, marginBottom: 18, fontSize: 12, color: "#8a93a6" }}>
-          {mode === "signin" ? "Sign in to your account" : "Create an account"}
+        <p
+          style={{
+            marginTop: 6,
+            marginBottom: 22,
+            fontSize: 13,
+            color: "#a9c2e6",
+            textAlign: "center",
+          }}
+        >
+          {mode === "signin" ? "Continue your mission." : "Join the mission."}
         </p>
 
-        <label style={{ display: "block", fontSize: 11, color: "#8a93a6", marginBottom: 4 }}>
-          Email
-        </label>
         <input
           type="email"
           required
+          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={inputStyle}
         />
 
-        <label
-          style={{ display: "block", fontSize: 11, color: "#8a93a6", margin: "12px 0 4px" }}
-        >
-          Password
-        </label>
         <input
           type="password"
           required
           minLength={6}
+          placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={inputStyle}
+          style={{ ...inputStyle, marginTop: 12 }}
         />
 
         {error && (
-          <p style={{ color: "#ff5757", fontSize: 12, marginTop: 12 }}>{error}</p>
+          <p style={{ color: "#ff7a7a", fontSize: 12, marginTop: 12 }}>{error}</p>
         )}
-        {info && <p style={{ color: "#4ea1ff", fontSize: 12, marginTop: 12 }}>{info}</p>}
+        {info && <p style={{ color: "#7ec1ff", fontSize: 12, marginTop: 12 }}>{info}</p>}
 
         <button
           type="submit"
           disabled={busy}
           style={{
-            marginTop: 16,
+            marginTop: 20,
             width: "100%",
-            padding: 10,
-            background: "#f5a623",
-            color: "#1a1d23",
-            border: 0,
-            borderRadius: 5,
+            padding: "14px 16px",
+            background: "linear-gradient(180deg, #2a6fc4 0%, #14457f 100%)",
+            color: "#ffffff",
+            border: "1px solid rgba(120,180,255,0.4)",
+            borderRadius: 8,
             fontWeight: 700,
+            letterSpacing: 2,
             cursor: "pointer",
             opacity: busy ? 0.6 : 1,
+            boxShadow: "0 6px 20px rgba(20, 69, 127, 0.5)",
           }}
         >
-          {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+          {busy
+            ? "PLEASE WAIT…"
+            : mode === "signin"
+              ? "ENTER DASHBOARD →"
+              : "CREATE ACCOUNT →"}
         </button>
 
         <button
@@ -141,10 +166,10 @@ function LoginPage() {
             setInfo(null);
           }}
           style={{
-            marginTop: 10,
+            marginTop: 12,
             width: "100%",
             background: "transparent",
-            color: "#8a93a6",
+            color: "#a9c2e6",
             border: 0,
             cursor: "pointer",
             fontSize: 12,
@@ -161,11 +186,13 @@ function LoginPage() {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: 8,
-  background: "#1a1d23",
-  color: "#e6e9ef",
-  border: "1px solid #3a414d",
-  borderRadius: 4,
-  fontSize: 13,
+  padding: "12px 14px",
+  background: "rgba(8, 18, 36, 0.7)",
+  color: "#e6f1ff",
+  border: "1px solid rgba(120, 180, 255, 0.3)",
+  borderRadius: 8,
+  fontSize: 14,
   fontFamily: "inherit",
+  boxSizing: "border-box",
+  outline: "none",
 };
