@@ -183,9 +183,10 @@
 .login-overlay {
   background: linear-gradient(
     180deg,
-    rgba(7, 24, 47, 0.5) 0%,
-    rgba(7, 24, 47, 0.82) 60%,
-    rgba(7, 24, 47, 0.95) 100%
+    rgba(7, 24, 47, 0) 0%,
+    rgba(7, 24, 47, 0.55) 35%,
+    rgba(7, 24, 47, 0.9) 70%,
+    #07182f 100%
   );
 }
 @media (prefers-color-scheme: dark) {
@@ -199,9 +200,10 @@
   .login-overlay {
     background: linear-gradient(
       180deg,
-      rgba(2, 8, 15, 0.6) 0%,
-      rgba(2, 8, 15, 0.9) 60%,
-      rgba(2, 8, 15, 0.98) 100%
+      rgba(2, 8, 15, 0) 0%,
+      rgba(2, 8, 15, 0.6) 35%,
+      rgba(2, 8, 15, 0.92) 70%,
+      #02080f 100%
     );
   }
 }
@@ -215,9 +217,10 @@
 .dark .login-overlay {
   background: linear-gradient(
     180deg,
-    rgba(2, 8, 15, 0.6) 0%,
-    rgba(2, 8, 15, 0.9) 60%,
-    rgba(2, 8, 15, 0.98) 100%
+    rgba(2, 8, 15, 0) 0%,
+    rgba(2, 8, 15, 0.6) 35%,
+    rgba(2, 8, 15, 0.92) 70%,
+    #02080f 100%
   );
 }
 
