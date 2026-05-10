@@ -262,7 +262,7 @@ function extractStaticImports(source) {
   return [...out];
 }
 
-function checkNamedImports(source, file, fileRel, allow, violations, suppressed) {
+function checkNamedImports(source, file, fileRel, chain, allow, violations, suppressed) {
   for (const { name, reason } of FORBIDDEN_NAMED) {
     const re = new RegExp(
       `(?:import|export)\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*['"]`,
@@ -270,13 +270,14 @@ function checkNamedImports(source, file, fileRel, allow, violations, suppressed)
     );
     if (re.test(source)) {
       const a = namedAllowed(allow, fileRel, name);
-      if (a) suppressed.push({ kind: "named", file, spec: name, reason, allow: a });
-      else violations.push({ file, spec: name, reason });
+      const record = { kind: "named", file, spec: name, reason, chain };
+      if (a) suppressed.push({ ...record, allow: a });
+      else violations.push(record);
     }
   }
 }
 
-function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
+function walk(file, parents, seen, violations, suppressed, aliasCfg, allow, rootDir) {
   if (seen.has(file)) return;
   seen.add(file);
 
@@ -291,7 +292,8 @@ function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
   }
 
   const fileRel = toRepoRel(file, rootDir);
-  checkNamedImports(source, file, fileRel, allow, violations, suppressed);
+  const chain = [...parents, fileRel];
+  checkNamedImports(source, file, fileRel, chain, allow, violations, suppressed);
 
   // File-level allowlist: scanned for forbidden named symbols above, but we
   // do not descend into its imports.
@@ -301,12 +303,13 @@ function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
     for (const { test, reason } of FORBIDDEN_SPECIFIERS) {
       if (test(spec)) {
         const a = specifierAllowed(allow, fileRel, spec);
-        if (a) suppressed.push({ kind: "specifier", file, spec, reason, allow: a });
-        else violations.push({ file, spec, reason });
+        const record = { kind: "specifier", file, spec, reason, chain };
+        if (a) suppressed.push({ ...record, allow: a });
+        else violations.push(record);
       }
     }
     const resolved = resolveSpecifier(spec, file, aliasCfg);
-    if (resolved) walk(resolved, seen, violations, suppressed, aliasCfg, allow, rootDir);
+    if (resolved) walk(resolved, chain, seen, violations, suppressed, aliasCfg, allow, rootDir);
   }
 }
 
