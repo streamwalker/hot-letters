@@ -609,6 +609,68 @@ function selfTest() {
     `status=${child.status} stderr=${child.stderr}`,
   );
 
+  // Case 10: 3-hop chain to a forbidden specifier is recorded in `chain`.
+  setup(
+    {
+      "src/entry.ts": `import "./mid1";\n`,
+      "src/mid1.ts": `import "./mid2";\n`,
+      "src/mid2.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const v = r.violations.find((x) => x.spec === "./leaf.server");
+    expect(
+      "specifier violation carries full entry→importer chain",
+      !!v && JSON.stringify(v.chain) === JSON.stringify(["src/entry.ts", "src/mid1.ts", "src/mid2.ts"]),
+      `chain=${v ? JSON.stringify(v.chain) : "<no violation>"}`,
+    );
+  }
+
+  // Case 11: named-symbol violation chain ends at the file containing the import.
+  setup(
+    {
+      "src/entry.ts": `import "./bridge";\n`,
+      "src/bridge.ts": `import { supabaseAdmin } from "x";\nexport const y = supabaseAdmin;\n`,
+    },
+    { compilerOptions: {} },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const v = r.violations.find((x) => x.spec === "supabaseAdmin");
+    expect(
+      "named violation chain ends at the importing file",
+      !!v && JSON.stringify(v.chain) === JSON.stringify(["src/entry.ts", "src/bridge.ts"]),
+      `chain=${v ? JSON.stringify(v.chain) : "<no violation>"}`,
+    );
+  }
+
+  // Case 12: suppressed (allowlisted) finding also carries chain.
+  setup(
+    {
+      "src/entry.ts": `import "./mid";\n`,
+      "src/mid.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [{ from: "src/mid.ts", spec: "./leaf.server", reason: "test" }],
+      files: [],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  {
+    const s = r.suppressed.find((x) => x.spec === "./leaf.server");
+    expect(
+      "suppressed finding carries full chain",
+      !!s && JSON.stringify(s.chain) === JSON.stringify(["src/entry.ts", "src/mid.ts"]),
+      `chain=${s ? JSON.stringify(s.chain) : "<no suppressed>"}`,
+    );
+  }
+
   rmSync(dir, { recursive: true, force: true });
 
   if (failed > 0) {
