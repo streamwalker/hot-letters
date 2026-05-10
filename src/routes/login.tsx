@@ -163,6 +163,7 @@ function LoginPage() {
 
   return (
     <div
+      className="login-bg"
       style={{
         position: "relative",
         minHeight: "100vh",
@@ -171,7 +172,6 @@ function LoginPage() {
         backgroundSize: "cover",
         backgroundPosition: isMobile ? "70% center" : "center",
         backgroundRepeat: "no-repeat",
-        backgroundColor: "#04101f",
         color: "#e6f1ff",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         overflow: "hidden",
@@ -185,11 +185,10 @@ function LoginPage() {
       {isMobile && (
         <div
           aria-hidden
+          className="login-overlay"
           style={{
             position: "absolute",
             inset: 0,
-            background:
-              "linear-gradient(180deg, rgba(4,16,31,0.55) 0%, rgba(4,16,31,0.85) 60%, rgba(4,16,31,0.95) 100%)",
             zIndex: 1,
           }}
         />
@@ -201,6 +200,7 @@ function LoginPage() {
         alt="Hot Letters"
         width={1536}
         height={1024}
+        className="login-logo"
         style={
           isMobile
             ? {
@@ -209,7 +209,6 @@ function LoginPage() {
                 height: "auto",
                 marginTop: 8,
                 marginBottom: 24,
-                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
                 zIndex: 2,
               }
@@ -219,7 +218,6 @@ function LoginPage() {
                 left: "3vw",
                 width: "clamp(260px, 32vw, 560px)",
                 height: "auto",
-                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
                 zIndex: 2,
               }
