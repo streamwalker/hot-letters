@@ -30,6 +30,9 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const statusRef = useRef<HTMLDivElement | null>(null);
+  const lastFocusedRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -37,6 +40,26 @@ function LoginPage() {
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
+
+  // Focus trap: while busy, keep keyboard focus parked on the live status
+  // region so Tab/Shift-Tab can't escape the loading state.
+  useEffect(() => {
+    if (!busy) return;
+    lastFocusedRef.current = (document.activeElement as HTMLElement) ?? null;
+    statusRef.current?.focus();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        statusRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      // Restore focus when the loading state clears.
+      lastFocusedRef.current?.focus?.();
+    };
+  }, [busy]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
