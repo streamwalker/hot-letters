@@ -339,6 +339,31 @@ function LoginPage() {
             ? "Need an account? Sign up"
             : "Already have an account? Sign in"}
         </button>
+        </fieldset>
+
+        {/* Live region: announces busy state and result to screen readers.
+            tabIndex=-1 lets the focus trap park focus here while busy. */}
+        <div
+          ref={statusRef}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          tabIndex={-1}
+          style={{
+            position: "absolute",
+            width: 1,
+            height: 1,
+            padding: 0,
+            margin: -1,
+            overflow: "hidden",
+            clip: "rect(0,0,0,0)",
+            whiteSpace: "nowrap",
+            border: 0,
+            outline: "none",
+          }}
+        >
+          {statusMessage}
+        </div>
       </form>
     </div>
   );
