@@ -66,6 +66,9 @@ function LoginPage() {
     setError(null);
     setInfo(null);
     setBusy(true);
+    setStatusMessage(
+      mode === "signin" ? "Signing in, please wait." : "Creating account, please wait.",
+    );
     try {
       if (mode === "signup") {
         const { error } = await supabase.auth.signUp({
@@ -75,13 +78,17 @@ function LoginPage() {
         });
         if (error) throw error;
         setInfo("Check your email to confirm your account, then sign in.");
+        setStatusMessage("Account created. Check your email to confirm.");
         setMode("signin");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        setStatusMessage("Signed in successfully.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setError(msg);
+      setStatusMessage(`Error: ${msg}`);
     } finally {
       setBusy(false);
     }
