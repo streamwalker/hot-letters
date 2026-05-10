@@ -13,10 +13,11 @@ function rnd(seed: number) {
    sprinkle small "lit window" dots inside that rough rect and have a few
    slow blinking rooftop beacons. Positions are deterministic but varied. */
 export function CityTwinkle() {
-  const windows = Array.from({ length: 38 }, (_, i) => {
-    // Rough cityscape bbox (% of viewport) for the desktop bg art.
-    const left = 4 + rnd(i * 1.7) * 52;            // 4% – 56%
-    const top = 58 + rnd(i * 2.3) * 32;            // 58% – 90%
+  const windows = Array.from({ length: 50 }, (_, i) => {
+    // Rough cityscape bbox (% of viewport) for the desktop bg art —
+    // tall buildings sit roughly in the center-right of the window view.
+    const left = 38 + rnd(i * 1.7) * 30;           // 38% – 68%
+    const top = 14 + rnd(i * 2.3) * 50;            // 14% – 64%
     const w = 2 + Math.floor(rnd(i * 3.1) * 3);    // 2–4 px
     const h = 2 + Math.floor(rnd(i * 4.7) * 4);    // 2–5 px
     const dur = 3 + rnd(i * 5.9) * 6;              // 3–9 s
