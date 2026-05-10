@@ -276,6 +276,42 @@ function LoginPage() {
             style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
           />
 
+        {success && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: "10px 12px",
+              background: "rgba(46, 160, 110, 0.18)",
+              border: "1px solid rgba(120, 220, 170, 0.45)",
+              borderRadius: 8,
+              color: "#9ff0c2",
+              fontSize: isMobile ? 14 : 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                background: "#2ecc71",
+                color: "#04101f",
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                flexShrink: 0,
+              }}
+            >
+              ✓
+            </span>
+            <span>{success}</span>
+          </div>
+        )}
         {error && (
           <p style={{ color: "#ff7a7a", fontSize: isMobile ? 14 : 12, marginTop: 12 }}>{error}</p>
         )}
