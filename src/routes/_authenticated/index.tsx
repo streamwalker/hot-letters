@@ -533,9 +533,48 @@ const HOLO_PALETTES: Record<"dark" | "light", HoloPalette> = {
   },
 };
 
+type PulseKind = "save" | "export" | "parse" | "balloon" | "autosave";
+
+const PULSE_TINTS: Record<PulseKind, { glow: string; core: string; label: string }> = {
+  save:     { glow: "255,180,80",  core: "255,230,170", label: "SAVED" },
+  export:   { glow: "120,230,140", core: "210,255,220", label: "EXPORTED" },
+  parse:    { glow: "230,110,220", core: "255,200,250", label: "PARSED" },
+  balloon:  { glow: "120,200,255", core: "210,240,255", label: "BALLOON" },
+  autosave: { glow: "255,200,120", core: "255,235,200", label: "AUTOSAVED" },
+};
+
 function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: number }) {
   const theme = useTheme();
-  const p = HOLO_PALETTES[theme];
+  const basePalette = HOLO_PALETTES[theme];
+  const [pulse, setPulse] = useState<{ kind: PulseKind; strength: number; id: number } | null>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let nextId = 1;
+    function onPulse(e: Event) {
+      const detail = (e as CustomEvent).detail as { kind?: PulseKind; strength?: number } | undefined;
+      const kind = (detail?.kind ?? "balloon") as PulseKind;
+      const strength = Math.max(0, Math.min(1, detail?.strength ?? 0.6));
+      setPulse({ kind, strength, id: nextId++ });
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setPulse(null), 1100);
+    }
+    window.addEventListener("holo:pulse", onPulse);
+    return () => {
+      window.removeEventListener("holo:pulse", onPulse);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+
+  // Tint overrides palette glow/core during a pulse.
+  const tint = pulse ? PULSE_TINTS[pulse.kind] : null;
+  const p = tint
+    ? { ...basePalette, glow: tint.glow, core: tint.core }
+    : basePalette;
+  // Effective glow/speed: user sliders are baseline, pulses overshoot.
+  const pulseStrength = pulse?.strength ?? 0;
+  const effGlow = glow + pulseStrength * 1.5;
+  const effSpeed = speed * (1 + pulseStrength * 2.5);
+
   // 12 floating dots with deterministic positions/delays so SSR + CSR match.
   const dots = Array.from({ length: 12 }, (_, i) => {
     const angle = (i / 12) * Math.PI * 2;
@@ -547,11 +586,11 @@ function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: numbe
     return { x, y, delay, dur, i };
   });
   // Beam rotation duration scales inversely with the speed multiplier.
-  const beamDur = (6 / Math.max(0.05, speed)).toFixed(3);
+  const beamDur = (6 / Math.max(0.05, effSpeed)).toFixed(3);
   // Helper to multiply alpha values by glow.
-  const a = (base: number) => Math.min(1, Math.max(0, base * glow));
+  const a = (base: number) => Math.min(1, Math.max(0, base * effGlow));
   // Multiply blur/spread by glow too so the halo grows with intensity.
-  const s = (base: number) => Math.max(0, base * glow);
+  const s = (base: number) => Math.max(0, base * effGlow);
 
   return (
     <div
