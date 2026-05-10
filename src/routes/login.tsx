@@ -163,6 +163,7 @@ function LoginPage() {
 
   return (
     <div
+      className="login-bg"
       style={{
         position: "relative",
         minHeight: "100vh",
@@ -171,7 +172,6 @@ function LoginPage() {
         backgroundSize: "cover",
         backgroundPosition: isMobile ? "70% center" : "center",
         backgroundRepeat: "no-repeat",
-        backgroundColor: "#04101f",
         color: "#e6f1ff",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
         overflow: "hidden",
