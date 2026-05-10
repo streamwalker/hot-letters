@@ -251,6 +251,40 @@ function LoginPage() {
         boxSizing: "border-box",
       }}
     >
+      {/* Cinematic motion layers — positioned absolutely behind the form
+          (zIndex 1), so they never intercept input. */}
+      {!isMobile && <CityTwinkle />}
+      <Ships count={isMobile ? 3 : 5} />
+      <PointsOfLight count={isMobile ? 6 : 12} />
+      {!isMobile && (
+        <>
+          {/* Three live console readouts pinned over the bottom hardware panels. */}
+          <ConsoleScreen
+            tint="cyan"
+            label="LTR"
+            width={16}
+            rows={4}
+            style={{ left: "13%", bottom: "8%", width: 130, zIndex: 1 }}
+          />
+          <ConsoleScreen
+            tint="green"
+            label="FX"
+            width={16}
+            rows={4}
+            style={{ left: "30%", bottom: "8%", width: 130, zIndex: 1 }}
+            intervalMs={520}
+          />
+          <ConsoleScreen
+            tint="amber"
+            label="LYR"
+            width={16}
+            rows={4}
+            style={{ left: "62%", bottom: "8%", width: 130, zIndex: 1 }}
+            intervalMs={360}
+          />
+        </>
+      )}
+
       {isMobile && (
         <div
           aria-hidden
