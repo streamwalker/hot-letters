@@ -49,12 +49,54 @@ declare global {
   }
 }
 
+const HOLO_DEFAULTS = { glow: 1, speed: 1, open: true };
+
+function readNum(key: string, fallback: number, min: number, max: number): number {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw == null) return fallback;
+    const n = Number.parseFloat(raw);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(max, Math.max(min, n));
+  } catch {
+    return fallback;
+  }
+}
+
 function Letterer() {
   const ranRef = useRef(false);
   const [signingOut, setSigningOut] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+
+  // Hologram emitter controls — persisted across reloads.
+  const [holoGlow, setHoloGlow] = useState<number>(() =>
+    readNum("holo-glow", HOLO_DEFAULTS.glow, 0, 2),
+  );
+  const [holoSpeed, setHoloSpeed] = useState<number>(() =>
+    readNum("holo-speed", HOLO_DEFAULTS.speed, 0.2, 4),
+  );
+  const [holoOpen, setHoloOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return HOLO_DEFAULTS.open;
+    try {
+      const raw = window.localStorage.getItem("holo-controls-open");
+      if (raw == null) return HOLO_DEFAULTS.open;
+      return raw === "1";
+    } catch {
+      return HOLO_DEFAULTS.open;
+    }
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("holo-glow", String(holoGlow)); } catch { /* ignore */ }
+  }, [holoGlow]);
+  useEffect(() => {
+    try { window.localStorage.setItem("holo-speed", String(holoSpeed)); } catch { /* ignore */ }
+  }, [holoSpeed]);
+  useEffect(() => {
+    try { window.localStorage.setItem("holo-controls-open", holoOpen ? "1" : "0"); } catch { /* ignore */ }
+  }, [holoOpen]);
 
   // When the dialog opens, remember focus and move it to the destructive
   // action; restore focus on close.
@@ -344,7 +386,19 @@ function Letterer() {
           <style>{`@keyframes letterer-spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
-      <HologramEmitter />
+      <HologramEmitter glow={holoGlow} speed={holoSpeed} />
+      <HologramControls
+        glow={holoGlow}
+        speed={holoSpeed}
+        open={holoOpen}
+        onGlow={setHoloGlow}
+        onSpeed={setHoloSpeed}
+        onToggle={() => setHoloOpen((v) => !v)}
+        onReset={() => {
+          setHoloGlow(HOLO_DEFAULTS.glow);
+          setHoloSpeed(HOLO_DEFAULTS.speed);
+        }}
+      />
       <AmbientShips />
       <ConsoleScreen
         tint="cyan"
@@ -369,7 +423,7 @@ function Letterer() {
   );
 }
 
-function HologramEmitter() {
+function HologramEmitter({ glow = 1, speed = 1 }: { glow?: number; speed?: number }) {
   // 12 floating dots with deterministic positions/delays so SSR + CSR match.
   const dots = Array.from({ length: 12 }, (_, i) => {
     const angle = (i / 12) * Math.PI * 2;
@@ -380,6 +434,12 @@ function HologramEmitter() {
     const dur = (4 + (i % 4)).toFixed(2);
     return { x, y, delay, dur, i };
   });
+  // Beam rotation duration scales inversely with the speed multiplier.
+  const beamDur = (6 / Math.max(0.05, speed)).toFixed(3);
+  // Helper to multiply alpha values by glow.
+  const a = (base: number) => Math.min(1, Math.max(0, base * glow));
+  // Multiply blur/spread by glow too so the halo grows with intensity.
+  const s = (base: number) => Math.max(0, base * glow);
 
   return (
     <div
@@ -396,13 +456,13 @@ function HologramEmitter() {
     >
       <style>{`
         @keyframes holo-beam-rotate { to { transform: translateX(-50%) rotate(360deg); } }
-        @keyframes holo-base-pulse {
-          0%, 100% { box-shadow: 0 0 14px 2px rgba(120,200,255,0.55), 0 0 28px 6px rgba(120,200,255,0.25); }
-          50%      { box-shadow: 0 0 22px 4px rgba(150,220,255,0.85), 0 0 44px 10px rgba(120,200,255,0.4); }
-        }
         @keyframes holo-beam-flicker {
-          0%, 100% { opacity: 0.55; }
-          50%      { opacity: 0.85; }
+          0%, 100% { opacity: ${(0.55 * glow).toFixed(3)}; }
+          50%      { opacity: ${Math.min(1, 0.85 * glow).toFixed(3)}; }
+        }
+        @keyframes holo-base-pulse-dyn {
+          0%, 100% { box-shadow: 0 0 ${s(14)}px ${s(2)}px rgba(120,200,255,${a(0.55).toFixed(3)}), 0 0 ${s(28)}px ${s(6)}px rgba(120,200,255,${a(0.25).toFixed(3)}); }
+          50%      { box-shadow: 0 0 ${s(22)}px ${s(4)}px rgba(150,220,255,${a(0.85).toFixed(3)}), 0 0 ${s(44)}px ${s(10)}px rgba(120,200,255,${a(0.4).toFixed(3)}); }
         }
         @keyframes holo-dot-orbit {
           0%   { transform: translate(0,0) scale(1);   opacity: 0; }
@@ -431,8 +491,7 @@ function HologramEmitter() {
             "conic-gradient(from 0deg, rgba(120,200,255,0) 0deg, rgba(120,200,255,0.55) 30deg, rgba(180,230,255,0.15) 60deg, rgba(120,200,255,0) 120deg, rgba(120,200,255,0) 360deg)",
           clipPath: "polygon(50% 100%, 0% 0%, 100% 0%)",
           filter: "blur(1px)",
-          animation:
-            "holo-beam-rotate 6s linear infinite, holo-beam-flicker 2.4s ease-in-out infinite",
+          animation: `holo-beam-rotate ${beamDur}s linear infinite, holo-beam-flicker 2.4s ease-in-out infinite`,
           mixBlendMode: "screen",
         }}
       />
@@ -450,8 +509,8 @@ function HologramEmitter() {
             height: 4,
             marginLeft: -2,
             borderRadius: "50%",
-            background: "rgba(180,230,255,0.95)",
-            boxShadow: "0 0 6px 2px rgba(120,200,255,0.7)",
+            background: `rgba(180,230,255,${a(0.95).toFixed(3)})`,
+            boxShadow: `0 0 ${s(6)}px ${s(2)}px rgba(120,200,255,${a(0.7).toFixed(3)})`,
             ["--dx" as string]: `${d.x}px`,
             ["--dy" as string]: `${d.y}px`,
             animation: `holo-dot-orbit ${d.dur}s ease-in-out ${d.delay}s infinite`,
@@ -473,9 +532,155 @@ function HologramEmitter() {
           background:
             "radial-gradient(ellipse at center, #9ad6ff 0%, #3a8fd1 55%, #0a2540 100%)",
           border: "1px solid rgba(150,220,255,0.6)",
-          animation: "holo-base-pulse 2.8s ease-in-out infinite",
+          animation: "holo-base-pulse-dyn 2.8s ease-in-out infinite",
         }}
       />
+    </div>
+  );
+}
+
+type HologramControlsProps = {
+  glow: number;
+  speed: number;
+  open: boolean;
+  onGlow: (n: number) => void;
+  onSpeed: (n: number) => void;
+  onToggle: () => void;
+  onReset: () => void;
+};
+
+function HologramControls({
+  glow,
+  speed,
+  open,
+  onGlow,
+  onSpeed,
+  onToggle,
+  onReset,
+}: HologramControlsProps) {
+  const fmt = (n: number) => `${n.toFixed(2)}×`;
+  const panelBase: React.CSSProperties = {
+    position: "fixed",
+    left: 16,
+    bottom: 188,
+    zIndex: 1600,
+    pointerEvents: "auto",
+    background: "rgba(20, 26, 38, 0.85)",
+    color: "#e6f1ff",
+    border: "1px solid rgba(120, 180, 255, 0.3)",
+    borderRadius: 10,
+    backdropFilter: "blur(8px)",
+    WebkitBackdropFilter: "blur(8px)",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    fontSize: 11,
+    letterSpacing: 0.3,
+  };
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-label="Show hologram controls"
+        title="Hologram controls"
+        style={{
+          ...panelBase,
+          padding: "6px 10px",
+          cursor: "pointer",
+          fontWeight: 600,
+        }}
+      >
+        ◐ Holo
+      </button>
+    );
+  }
+  return (
+    <div
+      role="group"
+      aria-label="Hologram controls"
+      style={{ ...panelBase, padding: "10px 12px", width: 200 }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ fontWeight: 700, letterSpacing: 0.6 }}>HOLOGRAM</span>
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-label="Hide hologram controls"
+          title="Collapse"
+          style={{
+            background: "transparent",
+            color: "#a9c2e6",
+            border: 0,
+            cursor: "pointer",
+            padding: 2,
+            fontSize: 14,
+            lineHeight: 1,
+          }}
+        >
+          ▾
+        </button>
+      </div>
+
+      <label htmlFor="holo-glow" style={{ display: "block", marginBottom: 2 }}>
+        <span style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Glow</span>
+          <span style={{ color: "#a9c2e6" }}>{fmt(glow)}</span>
+        </span>
+      </label>
+      <input
+        id="holo-glow"
+        type="range"
+        min={0}
+        max={2}
+        step={0.05}
+        value={glow}
+        onChange={(e) => onGlow(Number.parseFloat(e.target.value))}
+        aria-valuetext={fmt(glow)}
+        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+      />
+
+      <label htmlFor="holo-speed" style={{ display: "block", marginBottom: 2 }}>
+        <span style={{ display: "flex", justifyContent: "space-between" }}>
+          <span>Speed</span>
+          <span style={{ color: "#a9c2e6" }}>{fmt(speed)}</span>
+        </span>
+      </label>
+      <input
+        id="holo-speed"
+        type="range"
+        min={0.2}
+        max={4}
+        step={0.1}
+        value={speed}
+        onChange={(e) => onSpeed(Number.parseFloat(e.target.value))}
+        aria-valuetext={fmt(speed)}
+        title="Beam rotation speed (no effect with reduced motion)"
+        style={{ width: "100%", accentColor: "#7ec1ff", marginBottom: 8 }}
+      />
+
+      <button
+        type="button"
+        onClick={onReset}
+        style={{
+          background: "transparent",
+          color: "#a9c2e6",
+          border: "1px solid rgba(120,180,255,0.3)",
+          borderRadius: 6,
+          padding: "4px 10px",
+          fontSize: 11,
+          cursor: "pointer",
+          width: "100%",
+        }}
+      >
+        Reset
+      </button>
     </div>
   );
 }
