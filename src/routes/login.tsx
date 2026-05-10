@@ -45,6 +45,21 @@ function LoginPage() {
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+  useEffect(() => {
+    if (!signedOut) return;
+    // Strip ?signedOut=1 so a refresh doesn't re-show the banner.
+    navigate({
+      to: "/login",
+      search: { redirect: redirectTo },
+      replace: true,
+    });
+    const t = window.setTimeout(() => {
+      setSuccess(null);
+      setStatusMessage("");
+    }, 3500);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
