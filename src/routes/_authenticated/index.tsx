@@ -163,8 +163,6 @@ function Letterer() {
         <span aria-hidden="true">⎋</span>
         {signingOut ? "Signing out…" : "Log out"}
       </button>
-        Log out
-      </button>
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
