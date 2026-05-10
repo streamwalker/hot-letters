@@ -128,7 +128,7 @@ function Letterer() {
       console.error("Sign out failed", err);
     } finally {
       // Hard navigate so any in-memory state from the editor is dropped.
-      window.location.assign("/login");
+      window.location.assign("/login?signedOut=1");
     }
   }
 
