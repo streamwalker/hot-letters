@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Ships, ConsoleScreen } from "@/components/scene-motion";
 import "../../letterer.css";
 import bodyHtml from "../../letterer-body.html?raw";
 import appJs from "../../letterer-app.js?raw";
