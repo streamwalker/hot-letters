@@ -128,7 +128,12 @@ function Letterer() {
       console.error("Sign out failed", err);
     } finally {
       // Hard navigate so any in-memory state from the editor is dropped.
-      window.location.assign("/login?signedOut=1");
+      // Preserve where the user was so we can return them here after
+      // they sign back in.
+      const here = window.location.pathname + window.location.search + window.location.hash;
+      const params = new URLSearchParams({ signedOut: "1" });
+      if (here && here !== "/login") params.set("redirect", here);
+      window.location.assign(`/login?${params.toString()}`);
     }
   }
 
