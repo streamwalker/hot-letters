@@ -189,42 +189,49 @@ function LoginPage() {
         <input
           type="email"
           required
+          autoComplete="email"
+          inputMode="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={inputStyle}
+          style={getInputStyle(isMobile)}
         />
 
         <input
           type="password"
           required
           minLength={6}
+          autoComplete={mode === "signin" ? "current-password" : "new-password"}
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{ ...inputStyle, marginTop: 10 }}
+          style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
         />
 
         {error && (
-          <p style={{ color: "#ff7a7a", fontSize: 12, marginTop: 10 }}>{error}</p>
+          <p style={{ color: "#ff7a7a", fontSize: isMobile ? 14 : 12, marginTop: 12 }}>{error}</p>
         )}
-        {info && <p style={{ color: "#7ec1ff", fontSize: 12, marginTop: 10 }}>{info}</p>}
+        {info && (
+          <p style={{ color: "#7ec1ff", fontSize: isMobile ? 14 : 12, marginTop: 12 }}>{info}</p>
+        )}
 
         <button
           type="submit"
           disabled={busy}
           style={{
-            marginTop: 16,
+            marginTop: isMobile ? 20 : 16,
             width: "100%",
-            padding: "12px 16px",
+            minHeight: isMobile ? 52 : 44,
+            padding: isMobile ? "16px 18px" : "12px 16px",
             background: "linear-gradient(180deg, #2a6fc4 0%, #14457f 100%)",
             color: "#ffffff",
             border: "1px solid rgba(120,180,255,0.4)",
-            borderRadius: 8,
+            borderRadius: 10,
             fontWeight: 700,
             letterSpacing: 2,
-            fontSize: 13,
+            fontSize: isMobile ? 15 : 13,
             cursor: "pointer",
+            touchAction: "manipulation",
             opacity: busy ? 0.6 : 1,
             boxShadow: "0 6px 20px rgba(20, 69, 127, 0.5)",
           }}
@@ -244,13 +251,16 @@ function LoginPage() {
             setInfo(null);
           }}
           style={{
-            marginTop: 10,
+            marginTop: isMobile ? 14 : 10,
             width: "100%",
+            minHeight: isMobile ? 44 : 32,
+            padding: isMobile ? "10px 12px" : "6px 8px",
             background: "transparent",
             color: "#a9c2e6",
             border: 0,
             cursor: "pointer",
-            fontSize: 12,
+            touchAction: "manipulation",
+            fontSize: isMobile ? 14 : 12,
           }}
         >
           {mode === "signin"
@@ -262,15 +272,19 @@ function LoginPage() {
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "10px 12px",
-  background: "rgba(8, 18, 36, 0.7)",
-  color: "#e6f1ff",
-  border: "1px solid rgba(120, 180, 255, 0.3)",
-  borderRadius: 8,
-  fontSize: 13,
-  fontFamily: "inherit",
-  boxSizing: "border-box",
-  outline: "none",
-};
+function getInputStyle(isMobile: boolean): React.CSSProperties {
+  return {
+    width: "100%",
+    minHeight: isMobile ? 52 : 40,
+    // 16px font on mobile prevents iOS Safari from auto-zooming on focus
+    fontSize: isMobile ? 16 : 13,
+    padding: isMobile ? "14px 16px" : "10px 12px",
+    background: "rgba(8, 18, 36, 0.7)",
+    color: "#e6f1ff",
+    border: "1px solid rgba(120, 180, 255, 0.3)",
+    borderRadius: 10,
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+    outline: "none",
+  };
+}
