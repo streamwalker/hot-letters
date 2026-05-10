@@ -289,6 +289,24 @@
   animation: city-beacon 3.5s ease-in-out infinite;
 }
 
+/* Background star twinkle */
+@keyframes star-twinkle {
+  0%, 100% { opacity: calc(var(--star-op, 0.6) * 0.35); transform: scale(1); }
+  50%      { opacity: var(--star-op, 0.6); transform: scale(1.4); }
+}
+.star {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(220, 235, 255, 0.95);
+  box-shadow: 0 0 3px 1px rgba(180, 215, 255, 0.45);
+  animation: star-twinkle 6s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+.star.warm {
+  background: rgba(255, 225, 195, 0.95);
+  box-shadow: 0 0 3px 1px rgba(255, 200, 150, 0.45);
+}
+
 /* Ships drifting across the cityscape window on gentle curved paths.
    Animates `left` (% of container) for horizontal travel and `transform:
    translateY(...)` for the gentle wave, so the inner <img> can keep its
