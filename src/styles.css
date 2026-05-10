@@ -401,12 +401,45 @@
 .console-screen.amber { color: #ffc878; text-shadow: 0 0 4px rgba(255,200,120,0.7); }
 .console-screen.cyan  { color: #7ee0ff; text-shadow: 0 0 4px rgba(126,224,255,0.7); }
 
+/* Reduced-motion fallback.
+   - Ships: hidden by default for users who request reduced motion. Opt back
+     in by setting `data-ship-motion="slow"` on <html> or <body> to keep a
+     very slow, drift-only crawl with no vertical wave.
+   - Twinkles, beacons, lit windows, stars: kept but slowed dramatically.
+   - Logo and points-of-light: paused entirely. */
 @media (prefers-reduced-motion: reduce) {
+  .ship-wrap { display: none !important; }
   .login-logo,
-  .ship-wrap,
   .pol { animation: none !important; }
   .login-logo-inner,
   .city-window,
   .city-beacon,
-  .star { animation-duration: 10s !important; }
+  .star { animation-duration: 12s !important; }
+
+  [data-ship-motion="slow"] .ship-wrap {
+    display: block !important;
+    animation-duration: 180s !important;
+    animation-timing-function: linear !important;
+  }
+  /* Drop the vertical wave for the slow opt-in path: keep only horizontal
+     drift by overriding each curve's translate stops with translateX-only. */
+  [data-ship-motion="slow"] .ship-wrap {
+    animation-name: ship-glide-ltr !important;
+  }
+  [data-ship-motion="slow"] .ship-wrap[style*="ship-curve-rtl"] {
+    animation-name: ship-glide-rtl !important;
+  }
+}
+
+@keyframes ship-glide-ltr {
+  0%   { transform: translate3d(-25cqw, 0, 0); opacity: 0; }
+  10%  { opacity: var(--ship-op, 0.85); }
+  90%  { opacity: var(--ship-op, 0.85); }
+  100% { transform: translate3d(125cqw, 0, 0); opacity: 0; }
+}
+@keyframes ship-glide-rtl {
+  0%   { transform: translate3d(125cqw, 0, 0); opacity: 0; }
+  10%  { opacity: var(--ship-op, 0.85); }
+  90%  { opacity: var(--ship-op, 0.85); }
+  100% { transform: translate3d(-25cqw, 0, 0); opacity: 0; }
 }
