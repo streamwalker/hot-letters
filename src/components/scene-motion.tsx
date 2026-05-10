@@ -175,6 +175,9 @@ export function Ships({ count = 5, faint = false }: { count?: number; faint?: bo
             alt=""
             className="ship"
             loading="lazy"
+            decoding="async"
+            width={s.size}
+            height={s.size}
             style={{
               display: "block",
               width: s.size,
