@@ -4,6 +4,12 @@ import { Moon, Sun } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import loginBg from "@/assets/login-bg.png";
 import hotLettersLogo from "@/assets/hot-letters-logo.png";
+import {
+  CityTwinkle,
+  Ships,
+  PointsOfLight,
+  ConsoleScreen,
+} from "@/components/scene-motion";
 
 /**
  * Sanitize a redirect target so we never bounce users to an external URL or
