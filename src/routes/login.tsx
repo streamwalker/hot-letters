@@ -205,7 +205,7 @@ function LoginPage() {
           isMobile
             ? {
                 position: "relative",
-                width: "min(520px, 90vw)",
+                width: "clamp(220px, 65vw, 520px)",
                 height: "auto",
                 marginTop: 8,
                 marginBottom: 24,
@@ -217,7 +217,7 @@ function LoginPage() {
                 position: "absolute",
                 top: "3vh",
                 left: "3vw",
-                width: "min(560px, 44vw)",
+                width: "clamp(260px, 32vw, 560px)",
                 height: "auto",
                 filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
