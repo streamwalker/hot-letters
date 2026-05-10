@@ -8,6 +8,52 @@ function rnd(seed: number) {
   return x - Math.floor(x);
 }
 
+/* ---------- Background star twinkle ----------
+   Sprinkles tiny dim points across the night-sky portions of the bg
+   (upper band + right window area), each with its own slow twinkle.
+   Deterministic positions/timings so SSR/CSR match. */
+export function StarField({ count = 80 }: { count?: number }) {
+  const stars = Array.from({ length: count }, (_, i) => {
+    // Sky band: full width across the top, plus the right window column.
+    const inWindow = rnd(i * 1.13) > 0.55;
+    const left = inWindow
+      ? 42 + rnd(i * 2.7) * 44   // right window strip
+      : rnd(i * 3.1) * 100;       // anywhere across top
+    const top = inWindow
+      ? 4 + rnd(i * 4.9) * 55     // window vertical band
+      : rnd(i * 5.3) * 35;        // upper band only
+    const size = rnd(i * 6.7) > 0.92 ? 2 : 1; // mostly 1px, occasional 2px
+    const baseOpacity = 0.35 + rnd(i * 7.1) * 0.5;
+    const dur = 3.5 + rnd(i * 8.3) * 6;       // 3.5–9.5s
+    const delay = -rnd(i * 9.7) * 8;
+    const warm = rnd(i * 11.3) > 0.85;        // a few warm stars
+    return { i, left, top, size, baseOpacity, dur, delay, warm };
+  });
+  return (
+    <div
+      aria-hidden
+      className="star-field"
+      style={{ position: "absolute", inset: 0, zIndex: 1, pointerEvents: "none" }}
+    >
+      {stars.map((s) => (
+        <span
+          key={s.i}
+          className={`star${s.warm ? " warm" : ""}`}
+          style={{
+            left: `${s.left}%`,
+            top: `${s.top}%`,
+            width: s.size,
+            height: s.size,
+            ["--star-op" as string]: String(s.baseOpacity),
+            animationDuration: `${s.dur}s`,
+            animationDelay: `${s.delay}s`,
+          } as CSSProperties}
+        />
+      ))}
+    </div>
+  );
+}
+
 /* ---------- City windows + beacons (login only) ----------
    The cityscape sits in the lower-left ~half of the desktop bg image. We
    sprinkle small "lit window" dots inside that rough rect and have a few
