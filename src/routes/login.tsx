@@ -185,11 +185,10 @@ function LoginPage() {
       {isMobile && (
         <div
           aria-hidden
+          className="login-overlay"
           style={{
             position: "absolute",
             inset: 0,
-            background:
-              "linear-gradient(180deg, rgba(4,16,31,0.55) 0%, rgba(4,16,31,0.85) 60%, rgba(4,16,31,0.95) 100%)",
             zIndex: 1,
           }}
         />
