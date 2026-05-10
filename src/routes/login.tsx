@@ -50,7 +50,9 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(
+    signedOut ? "Signed out successfully. See you soon!" : null,
+  );
   const [busy, setBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const statusRef = useRef<HTMLDivElement | null>(null);
