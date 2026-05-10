@@ -82,8 +82,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Hot Letters - Celsius Powered Comic Book Letterer" },
       { name: "twitter:description", content: "Hot Letters creates an exact copy of a web page, preserving project data and allowing script interaction." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/29a105c6-c094-4d1e-94c9-3b3de6a32016" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/29a105c6-c094-4d1e-94c9-3b3de6a32016" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b6ad4e53-e08d-4581-8ec2-2d94999f3b1c" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/b6ad4e53-e08d-4581-8ec2-2d94999f3b1c" },
     ],
     links: [
       {
