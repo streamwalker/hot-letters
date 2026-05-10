@@ -320,13 +320,35 @@ function runCheck(rootDir, entry) {
   const allow = loadAllowlist(rootDir);
   const violations = [];
   const suppressed = [];
-  walk(entry, new Set(), violations, suppressed, aliasCfg, allow, rootDir);
+  walk(entry, [], new Set(), violations, suppressed, aliasCfg, allow, rootDir);
   const stale = [
     ...allow.specifiers.filter((e) => !e._used).map((e) => ({ kind: "specifiers", entry: e })),
     ...allow.files.filter((e) => !e._used).map((e) => ({ kind: "files", entry: e })),
     ...allow.named.filter((e) => !e._used).map((e) => ({ kind: "named", entry: e })),
   ];
-  return { violations, suppressed, stale };
+  return { violations: dedupe(violations), suppressed: dedupe(suppressed), stale };
+}
+
+function dedupe(records) {
+  const seen = new Set();
+  const out = [];
+  for (const r of records) {
+    const key = `${r.chain ? r.chain.join(">") : ""}::${r.spec}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(r);
+  }
+  return out;
+}
+
+function formatChain(chain, finalArrow) {
+  const lines = [];
+  if (chain && chain.length > 0) {
+    lines.push(`      ${chain[0]}`);
+    for (let i = 1; i < chain.length; i++) lines.push(`        → ${chain[i]}`);
+  }
+  if (finalArrow) lines.push(`        → ${finalArrow}`);
+  return lines.join("\n");
 }
 
 function reportAndExit(result, entryRel) {
@@ -337,8 +359,9 @@ function reportAndExit(result, entryRel) {
       `[auth-client-safety] suppressed ${suppressed.length} finding(s) via allowlist:`,
     );
     for (const s of suppressed) {
-      const rel = s.file.replace(ROOT + "/", "");
-      console.log(`  - ${rel}  "${s.spec}"  (${s.reason})  — ${s.allow.reason}`);
+      console.log(`  - "${s.spec}"  (${s.reason})  — ${s.allow.reason}`);
+      console.log(`    chain:`);
+      console.log(formatChain(s.chain, `"${s.spec}"   ← suppressed`));
     }
   }
 
@@ -356,11 +379,13 @@ function reportAndExit(result, entryRel) {
       `\n[auth-client-safety] FAIL: ${violations.length} server-only import(s) reachable from ${entryRel}:\n`,
     );
     for (const v of violations) {
-      const rel = v.file.replace(ROOT + "/", "");
-      console.error(`  - ${rel}\n      imports "${v.spec}"  (${v.reason})`);
+      console.error(`  - imports "${v.spec}"  (${v.reason})`);
+      console.error(`    chain:`);
+      console.error(formatChain(v.chain, `"${v.spec}"   ← forbidden`));
+      console.error("");
     }
     console.error(
-      `\nFix: move the server-only code behind createServerFn / createIsomorphicFn().server(),\n` +
+      `Fix: move the server-only code behind createServerFn / createIsomorphicFn().server(),\n` +
         `or load it via a dynamic import() inside a server-only branch.\n` +
         `If genuinely safe, add a documented entry to ${ALLOWLIST_FILENAME}.\n`,
     );
