@@ -29,14 +29,22 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const statusRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: "/" });
+      if (!session || redirectingRef.current) return;
+      redirectingRef.current = true;
+      setError(null);
+      setSuccess("Signed in! Redirecting to your dashboard…");
+      setStatusMessage("Signed in successfully. Redirecting to your dashboard.");
+      setBusy(true);
+      window.setTimeout(() => navigate({ to: "/" }), 1200);
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
@@ -65,32 +73,43 @@ function LoginPage() {
     e.preventDefault();
     setError(null);
     setInfo(null);
+    setSuccess(null);
     setBusy(true);
     setStatusMessage(
       mode === "signin" ? "Signing in, please wait." : "Creating account, please wait.",
     );
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
+        if (data.session) {
+          // Auto sign-in (email confirmation disabled). The auth listener
+          // will set the success state and redirect after a short delay.
+          setSuccess("Account created! Redirecting…");
+          setStatusMessage("Account created. Redirecting to your dashboard.");
+          return; // keep busy true until the listener navigates
+        }
         setInfo("Check your email to confirm your account, then sign in.");
         setStatusMessage("Account created. Check your email to confirm.");
         setMode("signin");
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // The auth listener will render the success state and navigate.
         setStatusMessage("Signed in successfully.");
+        return; // keep busy true until the listener navigates
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
       setError(msg);
       setStatusMessage(`Error: ${msg}`);
     } finally {
-      setBusy(false);
+      // Only release busy if we are NOT in the redirect handoff.
+      if (!redirectingRef.current) setBusy(false);
     }
   }
 
@@ -257,6 +276,42 @@ function LoginPage() {
             style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
           />
 
+        {success && (
+          <div
+            style={{
+              marginTop: 14,
+              padding: "10px 12px",
+              background: "rgba(46, 160, 110, 0.18)",
+              border: "1px solid rgba(120, 220, 170, 0.45)",
+              borderRadius: 8,
+              color: "#9ff0c2",
+              fontSize: isMobile ? 14 : 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: "50%",
+                background: "#2ecc71",
+                color: "#04101f",
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 12,
+                flexShrink: 0,
+              }}
+            >
+              ✓
+            </span>
+            <span>{success}</span>
+          </div>
+        )}
         {error && (
           <p style={{ color: "#ff7a7a", fontSize: isMobile ? 14 : 12, marginTop: 12 }}>{error}</p>
         )}
