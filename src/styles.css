@@ -398,5 +398,6 @@
   .pol { animation: none !important; }
   .login-logo-inner,
   .city-window,
-  .city-beacon { animation-duration: 8s !important; }
+  .city-beacon,
+  .star { animation-duration: 10s !important; }
 }
