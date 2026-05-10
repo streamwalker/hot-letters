@@ -29,14 +29,22 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const statusRef = useRef<HTMLDivElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
+  const redirectingRef = useRef(false);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (session) navigate({ to: "/" });
+      if (!session || redirectingRef.current) return;
+      redirectingRef.current = true;
+      setError(null);
+      setSuccess("Signed in! Redirecting to your dashboard…");
+      setStatusMessage("Signed in successfully. Redirecting to your dashboard.");
+      setBusy(true);
+      window.setTimeout(() => navigate({ to: "/" }), 1200);
     });
     return () => sub.subscription.unsubscribe();
   }, [navigate]);
