@@ -15,17 +15,19 @@
  * Path aliases are resolved generically from `tsconfig.json`'s
  * `compilerOptions.paths`, not hard-coded to `@/`.
  *
+ * A small allowlist (`scripts/auth-client-safety.allowlist.json`) can suppress
+ * specific known-safe findings. See that file's header for rules.
+ *
  * Run: `bun run check:auth-client-safe`
  *      `node scripts/check-authenticated-client-safety.mjs --self-test`
  */
 import { readFileSync, existsSync, statSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
-import { dirname, resolve, extname, join, isAbsolute } from "node:path";
+import { dirname, resolve, extname, join, isAbsolute, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 
-// Patterns that must NEVER appear as a static import in the client graph.
 const FORBIDDEN_SPECIFIERS = [
   { test: (s) => s === "@tanstack/react-start/server", reason: "server-only runtime" },
   { test: (s) => /\.server(\.[tj]sx?)?$/.test(s), reason: "*.server.* module" },
@@ -40,14 +42,15 @@ const FORBIDDEN_NAMED = [
 const SOURCE_EXTS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
 const IGNORED_EXTS = new Set([".css", ".scss", ".sass", ".less", ".json", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".ico", ".html", ".md", ".txt", ".woff", ".woff2", ".ttf", ".otf"]);
 
-// ---- tsconfig path alias loading ----------------------------------------
+// ---- JSONC ---------------------------------------------------------------
 
 function stripJsonComments(src) {
-  // Strip /* */ and // comments; tsconfig allows JSONC.
   return src
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/(^|[^:"'])\/\/.*$/gm, "$1");
 }
+
+// ---- tsconfig path alias loading ----------------------------------------
 
 function loadTsconfigPaths(rootDir) {
   const tsconfigPath = join(rootDir, "tsconfig.json");
@@ -65,7 +68,7 @@ function loadTsconfigPaths(rootDir) {
   for (const [pattern, targetsRaw] of Object.entries(paths)) {
     const targets = Array.isArray(targetsRaw) ? targetsRaw : [];
     const star = pattern.endsWith("/*");
-    const prefix = star ? pattern.slice(0, -1) : pattern; // keep trailing slash if star
+    const prefix = star ? pattern.slice(0, -1) : pattern;
     aliases.push({
       pattern,
       prefix,
@@ -77,7 +80,6 @@ function loadTsconfigPaths(rootDir) {
       })),
     });
   }
-  // Longest prefix wins (TS semantics).
   aliases.sort((a, b) => b.prefix.length - a.prefix.length);
   return { aliases, baseDir };
 }
@@ -96,6 +98,108 @@ function applyAlias(spec, aliasCfg) {
       }
     } else if (spec === a.pattern) {
       return a.targets.map((t) => resolve(aliasCfg.baseDir, t.raw));
+    }
+  }
+  return null;
+}
+
+// ---- allowlist ----------------------------------------------------------
+
+const ALLOWLIST_FILENAME = "scripts/auth-client-safety.allowlist.json";
+
+function loadAllowlist(rootDir) {
+  const path = join(rootDir, ALLOWLIST_FILENAME);
+  if (!existsSync(path)) {
+    return { specifiers: [], files: [], named: [], hits: new WeakMap() };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(stripJsonComments(readFileSync(path, "utf8")));
+  } catch (e) {
+    console.error(`[auth-client-safety] Failed to parse ${ALLOWLIST_FILENAME}: ${e.message}`);
+    process.exit(1);
+  }
+
+  const errors = [];
+  const KNOWN = { specifiers: ["spec", "from", "reason"], files: ["path", "reason"], named: ["name", "from", "reason"] };
+
+  function validate(arr, kind) {
+    if (arr === undefined) return [];
+    if (!Array.isArray(arr)) {
+      errors.push(`\`${kind}\` must be an array`);
+      return [];
+    }
+    const out = [];
+    for (const [i, entry] of arr.entries()) {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+        errors.push(`${kind}[${i}] must be an object`);
+        continue;
+      }
+      for (const k of KNOWN[kind]) {
+        if (typeof entry[k] !== "string" || entry[k].trim() === "") {
+          errors.push(`${kind}[${i}] missing/empty required string \`${k}\``);
+        }
+      }
+      for (const k of Object.keys(entry)) {
+        if (!KNOWN[kind].includes(k)) {
+          errors.push(`${kind}[${i}] has unknown key \`${k}\``);
+        }
+      }
+      out.push({ ...entry, _used: false });
+    }
+    return out;
+  }
+
+  // Ignore $comment / underscore-prefixed metadata keys.
+  for (const k of Object.keys(parsed)) {
+    if (k.startsWith("$") || k.startsWith("_")) continue;
+    if (!["specifiers", "files", "named"].includes(k)) {
+      errors.push(`unknown top-level key \`${k}\``);
+    }
+  }
+
+  const allow = {
+    specifiers: validate(parsed.specifiers, "specifiers"),
+    files: validate(parsed.files, "files"),
+    named: validate(parsed.named, "named"),
+  };
+
+  if (errors.length) {
+    console.error(`[auth-client-safety] Invalid ${ALLOWLIST_FILENAME}:`);
+    for (const e of errors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
+  return allow;
+}
+
+function toRepoRel(file, rootDir) {
+  const r = relative(rootDir, file);
+  return r.split(sep).join("/");
+}
+
+function specifierAllowed(allow, fileRel, spec) {
+  for (const e of allow.specifiers) {
+    if (e.from === fileRel && e.spec === spec) {
+      e._used = true;
+      return e;
+    }
+  }
+  return null;
+}
+function namedAllowed(allow, fileRel, name) {
+  for (const e of allow.named) {
+    if (e.from === fileRel && e.name === name) {
+      e._used = true;
+      return e;
+    }
+  }
+  return null;
+}
+function fileAllowed(allow, fileRel) {
+  for (const e of allow.files) {
+    if (e.path === fileRel) {
+      e._used = true;
+      return e;
     }
   }
   return null;
@@ -135,7 +239,7 @@ function resolveSpecifier(rawSpec, fromFile, aliasCfg) {
   } else if (isAbsolute(spec)) {
     candidates.push(spec);
   } else {
-    return null; // bare specifier — not walked
+    return null;
   }
 
   for (const c of candidates) {
@@ -147,8 +251,6 @@ function resolveSpecifier(rawSpec, fromFile, aliasCfg) {
 
 // ---- import / re-export extraction --------------------------------------
 
-// Matches static `import ... from "x"` AND `export ... from "x"` (incl.
-// `export * from`, `export * as ns from`, `export { a } from`).
 const STATIC_FROM_RE =
   /^\s*(?:import|export)\b[^'"`;]*?\bfrom\s*['"]([^'"]+)['"]/gm;
 const SIDE_EFFECT_IMPORT_RE = /^\s*import\s*['"]([^'"]+)['"]/gm;
@@ -160,21 +262,21 @@ function extractStaticImports(source) {
   return [...out];
 }
 
-function checkNamedImports(source, file, violations) {
-  // Catches `import { X } from ...` and `export { X } from ...` for
-  // forbidden symbol names — even from packages we don't walk into.
+function checkNamedImports(source, file, fileRel, allow, violations, suppressed) {
   for (const { name, reason } of FORBIDDEN_NAMED) {
     const re = new RegExp(
       `(?:import|export)\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*['"]`,
       "m",
     );
     if (re.test(source)) {
-      violations.push({ file, spec: name, reason });
+      const a = namedAllowed(allow, fileRel, name);
+      if (a) suppressed.push({ kind: "named", file, spec: name, reason, allow: a });
+      else violations.push({ file, spec: name, reason });
     }
   }
 }
 
-function walk(file, seen, violations, aliasCfg) {
+function walk(file, seen, violations, suppressed, aliasCfg, allow, rootDir) {
   if (seen.has(file)) return;
   seen.add(file);
 
@@ -188,14 +290,23 @@ function walk(file, seen, violations, aliasCfg) {
     return;
   }
 
-  checkNamedImports(source, file, violations);
+  const fileRel = toRepoRel(file, rootDir);
+  checkNamedImports(source, file, fileRel, allow, violations, suppressed);
+
+  // File-level allowlist: scanned for forbidden named symbols above, but we
+  // do not descend into its imports.
+  if (fileAllowed(allow, fileRel)) return;
 
   for (const spec of extractStaticImports(source)) {
     for (const { test, reason } of FORBIDDEN_SPECIFIERS) {
-      if (test(spec)) violations.push({ file, spec, reason });
+      if (test(spec)) {
+        const a = specifierAllowed(allow, fileRel, spec);
+        if (a) suppressed.push({ kind: "specifier", file, spec, reason, allow: a });
+        else violations.push({ file, spec, reason });
+      }
     }
     const resolved = resolveSpecifier(spec, file, aliasCfg);
-    if (resolved) walk(resolved, seen, violations, aliasCfg);
+    if (resolved) walk(resolved, seen, violations, suppressed, aliasCfg, allow, rootDir);
   }
 }
 
@@ -203,12 +314,40 @@ function walk(file, seen, violations, aliasCfg) {
 
 function runCheck(rootDir, entry) {
   const aliasCfg = loadTsconfigPaths(rootDir);
+  const allow = loadAllowlist(rootDir);
   const violations = [];
-  walk(entry, new Set(), violations, aliasCfg);
-  return violations;
+  const suppressed = [];
+  walk(entry, new Set(), violations, suppressed, aliasCfg, allow, rootDir);
+  const stale = [
+    ...allow.specifiers.filter((e) => !e._used).map((e) => ({ kind: "specifiers", entry: e })),
+    ...allow.files.filter((e) => !e._used).map((e) => ({ kind: "files", entry: e })),
+    ...allow.named.filter((e) => !e._used).map((e) => ({ kind: "named", entry: e })),
+  ];
+  return { violations, suppressed, stale };
 }
 
-function reportAndExit(violations, entryRel) {
+function reportAndExit(result, entryRel) {
+  const { violations, suppressed, stale } = result;
+
+  if (suppressed.length > 0) {
+    console.log(
+      `[auth-client-safety] suppressed ${suppressed.length} finding(s) via allowlist:`,
+    );
+    for (const s of suppressed) {
+      const rel = s.file.replace(ROOT + "/", "");
+      console.log(`  - ${rel}  "${s.spec}"  (${s.reason})  — ${s.allow.reason}`);
+    }
+  }
+
+  if (stale.length > 0) {
+    console.warn(
+      `[auth-client-safety] WARN: ${stale.length} stale allowlist entr(ies) — please remove:`,
+    );
+    for (const s of stale) {
+      console.warn(`  - ${s.kind}: ${JSON.stringify(s.entry)}`);
+    }
+  }
+
   if (violations.length > 0) {
     console.error(
       `\n[auth-client-safety] FAIL: ${violations.length} server-only import(s) reachable from ${entryRel}:\n`,
@@ -219,7 +358,8 @@ function reportAndExit(violations, entryRel) {
     }
     console.error(
       `\nFix: move the server-only code behind createServerFn / createIsomorphicFn().server(),\n` +
-        `or load it via a dynamic import() inside a server-only branch.\n`,
+        `or load it via a dynamic import() inside a server-only branch.\n` +
+        `If genuinely safe, add a documented entry to ${ALLOWLIST_FILENAME}.\n`,
     );
     process.exit(1);
   }
@@ -234,10 +374,15 @@ function selfTest() {
   const dir = join(tmpdir(), `auth-guard-selftest-${process.pid}-${Date.now()}`);
   let failed = 0;
 
-  function setup(files, tsconfig) {
+  function setup(files, tsconfig, allowlist) {
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "tsconfig.json"), JSON.stringify(tsconfig, null, 2));
+    if (allowlist !== undefined) {
+      const p = join(dir, ALLOWLIST_FILENAME);
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, typeof allowlist === "string" ? allowlist : JSON.stringify(allowlist, null, 2));
+    }
     for (const [rel, content] of Object.entries(files)) {
       const full = join(dir, rel);
       mkdirSync(dirname(full), { recursive: true });
@@ -263,14 +408,14 @@ function selfTest() {
     },
     { compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } } },
   );
-  let v = runCheck(dir, join(dir, "src/entry.ts"));
+  let r = runCheck(dir, join(dir, "src/entry.ts"));
   expect(
     "follows `export * from` re-exports into *.server.*",
-    v.some((x) => x.spec.endsWith("./leaf.server")),
-    `got: ${JSON.stringify(v)}`,
+    r.violations.some((x) => x.spec.endsWith("./leaf.server")),
+    `got: ${JSON.stringify(r.violations)}`,
   );
 
-  // Case 2: non-`@/` alias (`~/`) resolves and the leaf is flagged.
+  // Case 2: non-`@/` alias.
   setup(
     {
       "src/entry.ts": `import "~/bad.server";\n`,
@@ -278,11 +423,11 @@ function selfTest() {
     },
     { compilerOptions: { baseUrl: ".", paths: { "~/*": ["./src/*"] } } },
   );
-  v = runCheck(dir, join(dir, "src/entry.ts"));
+  r = runCheck(dir, join(dir, "src/entry.ts"));
   expect(
     "resolves non-`@/` tsconfig path alias",
-    v.some((x) => x.spec === "~/bad.server"),
-    `got: ${JSON.stringify(v)}`,
+    r.violations.some((x) => x.spec === "~/bad.server"),
+    `got: ${JSON.stringify(r.violations)}`,
   );
 
   // Case 3: re-export of forbidden named symbol.
@@ -292,14 +437,14 @@ function selfTest() {
     },
     { compilerOptions: {} },
   );
-  v = runCheck(dir, join(dir, "src/entry.ts"));
+  r = runCheck(dir, join(dir, "src/entry.ts"));
   expect(
     "flags re-exported forbidden named symbols",
-    v.some((x) => x.spec === "supabaseAdmin"),
-    `got: ${JSON.stringify(v)}`,
+    r.violations.some((x) => x.spec === "supabaseAdmin"),
+    `got: ${JSON.stringify(r.violations)}`,
   );
 
-  // Case 4: clean graph passes.
+  // Case 4: clean graph.
   setup(
     {
       "src/entry.ts": `import { ok } from "./helper";\nexport { ok };\n`,
@@ -307,8 +452,134 @@ function selfTest() {
     },
     { compilerOptions: { baseUrl: ".", paths: { "@/*": ["./src/*"] } } },
   );
-  v = runCheck(dir, join(dir, "src/entry.ts"));
-  expect("clean graph yields no violations", v.length === 0, `got: ${JSON.stringify(v)}`);
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect("clean graph yields no violations", r.violations.length === 0, `got: ${JSON.stringify(r.violations)}`);
+
+  // Case 5: specifier allowlist suppresses a matching (file, spec) pair.
+  setup(
+    {
+      "src/entry.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [
+        { from: "src/entry.ts", spec: "./leaf.server", reason: "test: known-safe wrapper" },
+      ],
+      files: [],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect(
+    "specifier allowlist suppresses matching (file, spec)",
+    r.violations.length === 0 && r.suppressed.length === 1,
+    `violations=${JSON.stringify(r.violations)} suppressed=${JSON.stringify(r.suppressed.map((s)=>s.spec))}`,
+  );
+
+  // Case 5b: specifier allowlist does NOT suppress a different importer.
+  setup(
+    {
+      "src/entry.ts": `import "./other";\n`,
+      "src/other.ts": `import "./leaf.server";\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [
+        { from: "src/entry.ts", spec: "./leaf.server", reason: "test" },
+      ],
+      files: [],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect(
+    "specifier allowlist scoped to importer (different file still flagged)",
+    r.violations.some((x) => x.spec === "./leaf.server"),
+    `violations=${JSON.stringify(r.violations)}`,
+  );
+
+  // Case 6: file allowlist stops descent but still flags forbidden NAMED symbols within.
+  setup(
+    {
+      "src/entry.ts": `import "./bridge";\n`,
+      "src/bridge.ts": `import "./leaf.server";\nimport { supabaseAdmin } from "x";\nexport const y = supabaseAdmin;\n`,
+      "src/leaf.server.ts": `export const x = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [],
+      files: [{ path: "src/bridge.ts", reason: "test: splitter handles this leaf" }],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect(
+    "file allowlist stops descent (no leaf.server violation)",
+    !r.violations.some((x) => x.spec.endsWith("leaf.server")),
+    `violations=${JSON.stringify(r.violations)}`,
+  );
+  expect(
+    "file allowlist still flags forbidden named symbols inside the leaf",
+    r.violations.some((x) => x.spec === "supabaseAdmin"),
+    `violations=${JSON.stringify(r.violations)}`,
+  );
+
+  // Case 7: named allowlist suppresses in listed file only.
+  setup(
+    {
+      "src/entry.ts": `import { supabaseAdmin } from "x";\nexport const z = supabaseAdmin;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [],
+      files: [],
+      named: [{ name: "supabaseAdmin", from: "src/entry.ts", reason: "test" }],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect(
+    "named allowlist suppresses matching (file, name)",
+    r.violations.length === 0 && r.suppressed.some((s) => s.spec === "supabaseAdmin"),
+    `violations=${JSON.stringify(r.violations)} suppressed=${JSON.stringify(r.suppressed.map((s)=>s.spec))}`,
+  );
+
+  // Case 8: stale entry produces a stale report (warn-only).
+  setup(
+    {
+      "src/entry.ts": `export const ok = 1;\n`,
+    },
+    { compilerOptions: {} },
+    {
+      specifiers: [{ from: "src/nope.ts", spec: "./gone", reason: "test stale" }],
+      files: [],
+      named: [],
+    },
+  );
+  r = runCheck(dir, join(dir, "src/entry.ts"));
+  expect(
+    "stale allowlist entries are reported (warn-only, no violation)",
+    r.violations.length === 0 && r.stale.length === 1,
+    `violations=${JSON.stringify(r.violations)} stale=${r.stale.length}`,
+  );
+
+  // Case 9: loader rejects entry without `reason` (must exit with code 1).
+  setup(
+    { "src/entry.ts": `export const ok = 1;\n` },
+    { compilerOptions: {} },
+    { specifiers: [{ from: "src/entry.ts", spec: "./x" }], files: [], named: [] },
+  );
+  const child = spawnSync(
+    process.execPath,
+    [fileURLToPath(import.meta.url), "--__internal-load-allowlist", dir],
+    { encoding: "utf8" },
+  );
+  expect(
+    "allowlist loader rejects entry missing `reason`",
+    child.status === 1 && /missing\/empty required string `reason`/.test(child.stderr),
+    `status=${child.status} stderr=${child.stderr}`,
+  );
 
   rmSync(dir, { recursive: true, force: true });
 
@@ -321,7 +592,14 @@ function selfTest() {
 
 // ---- entrypoint ---------------------------------------------------------
 
-if (process.argv.includes("--self-test")) {
+import { spawnSync } from "node:child_process";
+
+const internalIdx = process.argv.indexOf("--__internal-load-allowlist");
+if (internalIdx !== -1) {
+  // Used by self-test to verify the loader's fail-fast behavior.
+  loadAllowlist(process.argv[internalIdx + 1]);
+  process.exit(0);
+} else if (process.argv.includes("--self-test")) {
   selfTest();
 } else {
   const ENTRY = resolve(ROOT, "src/routes/_authenticated.tsx");
@@ -329,6 +607,6 @@ if (process.argv.includes("--self-test")) {
     console.error(`[auth-client-safety] entry not found: ${ENTRY}`);
     process.exit(1);
   }
-  const violations = runCheck(ROOT, ENTRY);
-  reportAndExit(violations, "src/routes/_authenticated.tsx");
+  const result = runCheck(ROOT, ENTRY);
+  reportAndExit(result, "src/routes/_authenticated.tsx");
 }

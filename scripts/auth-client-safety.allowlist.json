@@ -1,0 +1,24 @@
+{
+  "$comment": [
+    "Allowlist for scripts/check-authenticated-client-safety.mjs.",
+    "",
+    "PREFER FIXING THE IMPORT GRAPH. Only add an entry here when restructuring",
+    "is genuinely impractical (e.g. a third-party re-export wrapper the splitter",
+    "is known to tree-shake correctly).",
+    "",
+    "Every entry MUST include a non-empty `reason`. The guard prints reasons on",
+    "match and warns about stale entries so reviewers can audit usage in PRs.",
+    "",
+    "Three exact-match axes (no globs, no prefix matches):",
+    "  specifiers[]: { spec, from, reason }   -- silence (importer, specifier) pair",
+    "  files[]:      { path, reason }          -- stop walker descending into a leaf",
+    "                                             (still scanned for forbidden NAMED symbols)",
+    "  named[]:      { name, from, reason }    -- silence forbidden named import in one file",
+    "",
+    "Paths are repo-relative POSIX (e.g. `src/routes/_authenticated.tsx`).",
+    "Re-review allowlist entries during dependency upgrades; remove stale ones."
+  ],
+  "specifiers": [],
+  "files": [],
+  "named": []
+}
