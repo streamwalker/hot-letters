@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import loginBg from "@/assets/login-bg.png";
+import hotLettersLogo from "@/assets/hot-letters-logo.png";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
@@ -58,38 +59,60 @@ function LoginPage() {
   return (
     <div
       style={{
+        position: "relative",
         minHeight: "100vh",
         width: "100%",
         backgroundImage: `url(${loginBg})`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
         color: "#e6f1ff",
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        padding: "min(6vw, 80px)",
+        overflow: "hidden",
       }}
     >
+      {/* Hot Letters logo, top-left */}
+      <img
+        src={hotLettersLogo}
+        alt="Hot Letters"
+        width={1536}
+        height={1024}
+        style={{
+          position: "absolute",
+          top: "3vh",
+          left: "3vw",
+          width: "min(280px, 22vw)",
+          height: "auto",
+          filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
+          pointerEvents: "none",
+          zIndex: 2,
+        }}
+      />
+
+      {/* Form aligned over the baked-in LOG IN area on the right
+          card, leaving the Astralnaut Studios crest + wordmark above
+          fully visible. */}
       <form
         onSubmit={submit}
         style={{
-          width: "100%",
-          maxWidth: 420,
-          background: "rgba(10, 22, 44, 0.55)",
+          position: "absolute",
+          top: "52%",
+          right: "4.5%",
+          width: "min(360px, 30vw)",
+          padding: "20px 22px 22px",
+          background: "rgba(8, 18, 36, 0.55)",
           border: "1px solid rgba(120, 180, 255, 0.25)",
-          borderRadius: 14,
-          padding: "32px 32px 28px",
-          backdropFilter: "blur(8px)",
-          WebkitBackdropFilter: "blur(8px)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.45), 0 0 0 1px rgba(120,180,255,0.08) inset",
+          borderRadius: 12,
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          boxShadow: "0 16px 50px rgba(0,0,0,0.45)",
+          zIndex: 2,
         }}
       >
         <h1
           style={{
             margin: 0,
-            fontSize: 28,
+            fontSize: 22,
             letterSpacing: 4,
             textAlign: "center",
             fontWeight: 700,
@@ -99,9 +122,9 @@ function LoginPage() {
         </h1>
         <p
           style={{
-            marginTop: 6,
-            marginBottom: 22,
-            fontSize: 13,
+            marginTop: 4,
+            marginBottom: 16,
+            fontSize: 12,
             color: "#a9c2e6",
             textAlign: "center",
           }}
@@ -125,27 +148,28 @@ function LoginPage() {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          style={{ ...inputStyle, marginTop: 12 }}
+          style={{ ...inputStyle, marginTop: 10 }}
         />
 
         {error && (
-          <p style={{ color: "#ff7a7a", fontSize: 12, marginTop: 12 }}>{error}</p>
+          <p style={{ color: "#ff7a7a", fontSize: 12, marginTop: 10 }}>{error}</p>
         )}
-        {info && <p style={{ color: "#7ec1ff", fontSize: 12, marginTop: 12 }}>{info}</p>}
+        {info && <p style={{ color: "#7ec1ff", fontSize: 12, marginTop: 10 }}>{info}</p>}
 
         <button
           type="submit"
           disabled={busy}
           style={{
-            marginTop: 20,
+            marginTop: 16,
             width: "100%",
-            padding: "14px 16px",
+            padding: "12px 16px",
             background: "linear-gradient(180deg, #2a6fc4 0%, #14457f 100%)",
             color: "#ffffff",
             border: "1px solid rgba(120,180,255,0.4)",
             borderRadius: 8,
             fontWeight: 700,
             letterSpacing: 2,
+            fontSize: 13,
             cursor: "pointer",
             opacity: busy ? 0.6 : 1,
             boxShadow: "0 6px 20px rgba(20, 69, 127, 0.5)",
@@ -166,7 +190,7 @@ function LoginPage() {
             setInfo(null);
           }}
           style={{
-            marginTop: 12,
+            marginTop: 10,
             width: "100%",
             background: "transparent",
             color: "#a9c2e6",
@@ -186,12 +210,12 @@ function LoginPage() {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  padding: "12px 14px",
+  padding: "10px 12px",
   background: "rgba(8, 18, 36, 0.7)",
   color: "#e6f1ff",
   border: "1px solid rgba(120, 180, 255, 0.3)",
   borderRadius: 8,
-  fontSize: 14,
+  fontSize: 13,
   fontFamily: "inherit",
   boxSizing: "border-box",
   outline: "none",
