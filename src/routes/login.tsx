@@ -24,6 +24,7 @@ export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Sign in — Comic Book Letterer" }] }),
   validateSearch: (search: Record<string, unknown>): LoginSearch => ({
     redirect: safeRedirectPath(search.redirect),
+    signedOut: search.signedOut === "1" || search.signedOut === true,
   }),
   beforeLoad: async ({ search }) => {
     if (typeof window === "undefined") return;
