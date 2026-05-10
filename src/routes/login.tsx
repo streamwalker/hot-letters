@@ -200,6 +200,7 @@ function LoginPage() {
         alt="Hot Letters"
         width={1536}
         height={1024}
+        className="login-logo"
         style={
           isMobile
             ? {
@@ -208,7 +209,6 @@ function LoginPage() {
                 height: "auto",
                 marginTop: 8,
                 marginBottom: 24,
-                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
                 zIndex: 2,
               }
@@ -218,7 +218,6 @@ function LoginPage() {
                 left: "3vw",
                 width: "clamp(260px, 32vw, 560px)",
                 height: "auto",
-                filter: "drop-shadow(0 6px 20px rgba(0,0,0,0.6))",
                 pointerEvents: "none",
                 zIndex: 2,
               }
