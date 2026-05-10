@@ -186,23 +186,37 @@ function LoginPage() {
           {mode === "signin" ? "Continue your mission." : "Join the mission."}
         </p>
 
+        <label htmlFor="login-email" style={srOnly}>
+          Email
+        </label>
         <input
+          id="login-email"
+          name="email"
           type="email"
           required
           autoComplete="email"
           inputMode="email"
           placeholder="Email"
+          aria-label="Email"
+          className="login-input"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           style={getInputStyle(isMobile)}
         />
 
+        <label htmlFor="login-password" style={srOnly}>
+          Password
+        </label>
         <input
+          id="login-password"
+          name="password"
           type="password"
           required
           minLength={6}
           autoComplete={mode === "signin" ? "current-password" : "new-password"}
           placeholder="Password"
+          aria-label="Password"
+          className="login-input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           style={{ ...getInputStyle(isMobile), marginTop: isMobile ? 14 : 10 }}
