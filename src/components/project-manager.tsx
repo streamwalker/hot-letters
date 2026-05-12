@@ -33,6 +33,9 @@ export function ProjectManager() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  // Tracks whether the editor has changes pending the debounced autosave.
+  const dirtyRef = useRef(false);
+  const [hasUnsaved, setHasUnsaved] = useState(false);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
