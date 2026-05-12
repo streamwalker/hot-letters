@@ -471,7 +471,7 @@ export function ProjectManager() {
       >
         Delete
       </button>
-    </div>
+      <SaveIndicator status={saveStatus} error={saveError} savedAt={savedAt} hasUnsaved={hasUnsaved} />
   );
 }
 
