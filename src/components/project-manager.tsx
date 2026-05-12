@@ -368,6 +368,7 @@ export function ProjectManager() {
     }
     const out = activeIdRef.current;
     if (dirtyRef.current && out && window.__letterer) {
+      setSaveStatus("saving");
       try {
         const payload = window.__letterer.serialize();
         await supabase
@@ -378,6 +379,8 @@ export function ProjectManager() {
         setHasUnsaved(false);
       } catch (e) {
         console.error("Flush before switch failed", e);
+        setSaveStatus("error");
+        setSaveError(e instanceof Error ? e.message : String(e));
       }
     }
     await loadProject(id);
