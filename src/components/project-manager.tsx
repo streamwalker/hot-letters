@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type ProjectRow = {
@@ -24,12 +24,38 @@ export function ProjectManager() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
 
   const activeIdRef = useRef<string | null>(null);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
+
+  // Close picker on outside click or Escape; focus search when opened.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!pickerRef.current) return;
+      if (!pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPickerOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    // Defer focus so the click that opened the picker doesn't immediately blur it.
+    const t = setTimeout(() => searchInputRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      clearTimeout(t);
+    };
+  }, [pickerOpen]);
 
   // Wait for window.__letterer to be available.
   function waitForLetterer(timeoutMs = 5000): Promise<void> {
@@ -321,21 +347,21 @@ export function ProjectManager() {
       <span style={{ fontSize: 11, color: "#a9c2e6", padding: "0 4px" }}>
         Project
       </span>
-      <select
-        value={activeId ?? ""}
-        onChange={(e) => handleSwitch(e.target.value)}
-        disabled={busy || projects.length === 0}
-        aria-label="Active project"
-        style={{
-          ...baseBtn,
-          padding: "5px 8px",
-          maxWidth: 220,
-        }}
-      >
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </select>
+      <ProjectPicker
+        ref={pickerRef}
+        projects={projects}
+        activeId={activeId}
+        open={pickerOpen}
+        setOpen={setPickerOpen}
+        query={query}
+        setQuery={setQuery}
+        highlight={highlight}
+        setHighlight={setHighlight}
+        searchInputRef={searchInputRef}
+        busy={busy}
+        baseBtn={baseBtn}
+        onPick={(id) => { setPickerOpen(false); setQuery(""); handleSwitch(id); }}
+      />
       <button
         type="button"
         onClick={handleSaveAs}
@@ -366,3 +392,152 @@ export function ProjectManager() {
     </div>
   );
 }
+
+type PickerProps = {
+  projects: ProjectRow[];
+  activeId: string | null;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+  query: string;
+  setQuery: (v: string) => void;
+  highlight: number;
+  setHighlight: (v: number) => void;
+  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  busy: boolean;
+  baseBtn: React.CSSProperties;
+  onPick: (id: string) => void;
+};
+
+const ProjectPicker = React.forwardRef<HTMLDivElement, PickerProps>(function ProjectPicker(
+  { projects, activeId, open, setOpen, query, setQuery, highlight, setHighlight,
+    searchInputRef, busy, baseBtn, onPick },
+  ref,
+) {
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? projects.filter((p) => p.name.toLowerCase().includes(q))
+    : projects;
+  const activeName = projects.find((p) => p.id === activeId)?.name ?? "Select…";
+
+  useEffect(() => {
+    if (highlight >= filtered.length) setHighlight(0);
+  }, [filtered.length, highlight, setHighlight]);
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight(Math.min(highlight + 1, Math.max(filtered.length - 1, 0)));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight(Math.max(highlight - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = filtered[highlight];
+      if (pick) onPick(pick.id);
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        disabled={busy || projects.length === 0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        title="Switch project"
+        style={{
+          ...baseBtn,
+          padding: "5px 10px",
+          maxWidth: 220,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{activeName}</span>
+        <span style={{ opacity: 0.7, fontSize: 10 }}>▾</span>
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            minWidth: 260,
+            maxWidth: 360,
+            background: "#1b212c",
+            border: "1px solid #3a414d",
+            borderRadius: 8,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.4)",
+            padding: 6,
+            zIndex: 2100,
+          }}
+        >
+          <input
+            ref={searchInputRef}
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setHighlight(0); }}
+            onKeyDown={onKeyDown}
+            placeholder="Search projects…"
+            aria-label="Search projects"
+            style={{
+              width: "100%",
+              boxSizing: "border-box",
+              background: "#11151d",
+              color: "#e6e9ef",
+              border: "1px solid #3a414d",
+              borderRadius: 6,
+              padding: "6px 8px",
+              fontSize: 12,
+              outline: "none",
+              marginBottom: 4,
+            }}
+          />
+          <div style={{ maxHeight: 280, overflowY: "auto" }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: "8px 6px", color: "#8aa0bf", fontSize: 12 }}>
+                No matches
+              </div>
+            ) : (
+              filtered.map((p, i) => {
+                const isActive = p.id === activeId;
+                const isHi = i === highlight;
+                return (
+                  <div
+                    key={p.id}
+                    role="option"
+                    aria-selected={isActive}
+                    onMouseEnter={() => setHighlight(i)}
+                    onClick={() => onPick(p.id)}
+                    style={{
+                      padding: "6px 8px",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      fontSize: 12,
+                      color: "#e6e9ef",
+                      background: isHi ? "#2c3543" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    <span style={{ width: 10, color: "#7fb3ff" }}>{isActive ? "•" : ""}</span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+});
