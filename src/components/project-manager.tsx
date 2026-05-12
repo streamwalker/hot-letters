@@ -33,6 +33,9 @@ export function ProjectManager() {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pickerRef = useRef<HTMLDivElement | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  // Tracks whether the editor has changes pending the debounced autosave.
+  const dirtyRef = useRef(false);
+  const [hasUnsaved, setHasUnsaved] = useState(false);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
@@ -114,6 +117,8 @@ export function ProjectManager() {
 
   async function loadProject(id: string) {
     loadedRef.current = false;
+    dirtyRef.current = false;
+    setHasUnsaved(false);
     setActiveId(id);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     try {
@@ -139,6 +144,8 @@ export function ProjectManager() {
     function onChange() {
       const id = activeIdRef.current;
       if (!loadedRef.current || !id || !window.__letterer) return;
+      dirtyRef.current = true;
+      setHasUnsaved(true);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
         try {
@@ -149,6 +156,8 @@ export function ProjectManager() {
             .update({ data: payload as never, updated_at: now })
             .eq("id", id);
           if (e) throw e;
+          dirtyRef.current = false;
+          setHasUnsaved(false);
           setProjects((prev) =>
             prev.map((p) => (p.id === id ? { ...p, updated_at: now } : p)),
           );
@@ -318,21 +327,38 @@ export function ProjectManager() {
 
   async function handleSwitch(id: string) {
     if (id === activeId || busy) return;
+
+    // If autosave hasn't caught up yet, ask before leaving — three options:
+    //   OK     → save current edits, then switch
+    //   Cancel → abort the switch and stay on the current project
+    // (Discard isn't offered separately to keep this to a single browser
+    // dialog; users who want to discard can switch back and undo.)
+    if (dirtyRef.current) {
+      const proceed = window.confirm(
+        `"${currentName()}" has unsaved changes.\n\n` +
+        `Save them and switch projects?\n\n` +
+        `(Cancel to stay on this project.)`,
+      );
+      if (!proceed) return;
+    }
+
     // Flush any pending autosave for the outgoing project before switching.
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
-      const out = activeIdRef.current;
-      if (out && window.__letterer) {
-        try {
-          const payload = window.__letterer.serialize();
-          await supabase
-            .from("projects")
-            .update({ data: payload as never, updated_at: new Date().toISOString() })
-            .eq("id", out);
-        } catch (e) {
-          console.error("Flush before switch failed", e);
-        }
+    }
+    const out = activeIdRef.current;
+    if (dirtyRef.current && out && window.__letterer) {
+      try {
+        const payload = window.__letterer.serialize();
+        await supabase
+          .from("projects")
+          .update({ data: payload as never, updated_at: new Date().toISOString() })
+          .eq("id", out);
+        dirtyRef.current = false;
+        setHasUnsaved(false);
+      } catch (e) {
+        console.error("Flush before switch failed", e);
       }
     }
     await loadProject(id);
