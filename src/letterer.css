@@ -150,7 +150,7 @@
   body.mobile-mode #mobile-tabbar { display: flex; }
 
   body.mobile-mode header {
-    padding: env(safe-area-inset-top) 8px 0;
+    padding: env(safe-area-inset-top) 110px 0 8px;
     gap: 4px;
     overflow-x: auto;
     white-space: nowrap;
