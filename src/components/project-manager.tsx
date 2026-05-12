@@ -209,6 +209,53 @@ export function ProjectManager() {
     }
   }
 
+  async function handleDelete() {
+    if (!userId || !activeId || busy) return;
+    const name = currentName();
+    if (!window.confirm(`Delete project "${name}"? This cannot be undone.`)) return;
+    setBusy(true);
+    setError(null);
+    // Cancel any pending autosave for the project being deleted.
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const deletingId = activeId;
+    try {
+      const { error: e } = await supabase.from("projects").delete().eq("id", deletingId);
+      if (e) throw e;
+      const remaining = projects.filter((p) => p.id !== deletingId);
+      setProjects(remaining);
+      if (remaining.length > 0) {
+        await loadProject(remaining[0].id);
+      } else {
+        // Bootstrap a fresh Untitled so the user always has a project.
+        loadedRef.current = false;
+        if (window.__letterer) {
+          try { window.__letterer.load({}); } catch { /* ignore */ }
+        }
+        const { data: created, error: cErr } = await supabase
+          .from("projects")
+          .insert({ user_id: userId, name: "Untitled", data: {} })
+          .select("id, name, updated_at")
+          .single();
+        if (cErr) throw cErr;
+        const row = created as ProjectRow;
+        setProjects([row]);
+        setActiveId(row.id);
+        try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
+        loadedRef.current = true;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Delete failed", e);
+      setError(msg);
+      window.alert(`Could not delete: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleSwitch(id: string) {
     if (id === activeId || busy) return;
     // Flush any pending autosave for the outgoing project before switching.
@@ -306,6 +353,15 @@ export function ProjectManager() {
         title="Rename the active project"
       >
         Rename
+      </button>
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={busy || !activeId}
+        style={{ ...baseBtn, background: "#5a2a2a", borderColor: "#7a3a3a" }}
+        title="Delete the active project"
+      >
+        Delete
       </button>
     </div>
   );
