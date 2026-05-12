@@ -36,6 +36,16 @@ export function ProjectManager() {
   // Tracks whether the editor has changes pending the debounced autosave.
   const dirtyRef = useRef(false);
   const [hasUnsaved, setHasUnsaved] = useState(false);
+  // Autosave status surfaced in the bar.
+  // "idle"   → nothing pending, freshly loaded
+  // "pending"→ user typed; debounce timer running before write
+  // "saving" → write in flight
+  // "saved"  → last write succeeded ("Up to date")
+  // "error"  → last write failed; tooltip carries the message
+  type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
@@ -119,6 +129,8 @@ export function ProjectManager() {
     loadedRef.current = false;
     dirtyRef.current = false;
     setHasUnsaved(false);
+    setSaveStatus("idle");
+    setSaveError(null);
     setActiveId(id);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     try {
@@ -146,8 +158,10 @@ export function ProjectManager() {
       if (!loadedRef.current || !id || !window.__letterer) return;
       dirtyRef.current = true;
       setHasUnsaved(true);
+      setSaveStatus("pending");
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
+        setSaveStatus("saving");
         try {
           const payload = window.__letterer!.serialize();
           const now = new Date().toISOString();
@@ -158,11 +172,16 @@ export function ProjectManager() {
           if (e) throw e;
           dirtyRef.current = false;
           setHasUnsaved(false);
+          setSaveStatus("saved");
+          setSaveError(null);
+          setSavedAt(now);
           setProjects((prev) =>
             prev.map((p) => (p.id === id ? { ...p, updated_at: now } : p)),
           );
         } catch (e) {
           console.error("Autosave failed", e);
+          setSaveStatus("error");
+          setSaveError(e instanceof Error ? e.message : String(e));
         }
       }, 1200);
     }
@@ -349,6 +368,7 @@ export function ProjectManager() {
     }
     const out = activeIdRef.current;
     if (dirtyRef.current && out && window.__letterer) {
+      setSaveStatus("saving");
       try {
         const payload = window.__letterer.serialize();
         await supabase
@@ -359,6 +379,8 @@ export function ProjectManager() {
         setHasUnsaved(false);
       } catch (e) {
         console.error("Flush before switch failed", e);
+        setSaveStatus("error");
+        setSaveError(e instanceof Error ? e.message : String(e));
       }
     }
     await loadProject(id);
@@ -449,6 +471,7 @@ export function ProjectManager() {
       >
         Delete
       </button>
+      <SaveIndicator status={saveStatus} error={saveError} savedAt={savedAt} hasUnsaved={hasUnsaved} />
     </div>
   );
 }
@@ -601,3 +624,92 @@ const ProjectPicker = React.forwardRef<HTMLDivElement, PickerProps>(function Pro
     </div>
   );
 });
+
+type SaveStatusValue = "idle" | "pending" | "saving" | "saved" | "error";
+
+function SaveIndicator({
+  status, error, savedAt, hasUnsaved,
+}: {
+  status: SaveStatusValue;
+  error: string | null;
+  savedAt: string | null;
+  hasUnsaved: boolean;
+}) {
+  // Re-render every 30s so the "Up to date · 2m ago" relative time stays fresh.
+  const [, force] = useState(0);
+  useEffect(() => {
+    if (status !== "saved" || !savedAt) return;
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, [status, savedAt]);
+
+  let label = "Up to date";
+  let dot = "#3ecf8e"; // green
+  let title = "All changes saved";
+
+  if (status === "idle" && !hasUnsaved) {
+    label = "Up to date";
+  } else if (status === "pending" || (status === "idle" && hasUnsaved)) {
+    label = "Unsaved";
+    dot = "#e0a73a"; // amber
+    title = "Edits will autosave shortly";
+  } else if (status === "saving") {
+    label = "Saving…";
+    dot = "#e0a73a";
+    title = "Writing changes to the server";
+  } else if (status === "saved") {
+    label = savedAt ? `Up to date · ${relativeTime(savedAt)}` : "Up to date";
+    title = savedAt ? `Last saved ${new Date(savedAt).toLocaleTimeString()}` : "All changes saved";
+  } else if (status === "error") {
+    label = "Save failed";
+    dot = "#e05a5a"; // red
+    title = error ? `Autosave error: ${error}` : "Autosave failed";
+  }
+
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        marginLeft: 2,
+        padding: "0 8px",
+        fontSize: 11,
+        color: "#a9c2e6",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: "50%",
+          background: dot,
+          boxShadow:
+            status === "saving" || status === "pending"
+              ? `0 0 0 0 ${dot}`
+              : "none",
+          animation:
+            status === "saving" ? "letterer-pm-pulse 1.1s ease-in-out infinite" : undefined,
+        }}
+      />
+      {label}
+      <style>{`@keyframes letterer-pm-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }`}</style>
+    </span>
+  );
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const s = Math.max(0, Math.round(diff / 1000));
+  if (s < 5) return "just now";
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return `${h}h ago`;
+}
