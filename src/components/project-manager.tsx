@@ -354,6 +354,15 @@ export function ProjectManager() {
       >
         Rename
       </button>
+      <button
+        type="button"
+        onClick={handleDelete}
+        disabled={busy || !activeId}
+        style={{ ...baseBtn, background: "#5a2a2a", borderColor: "#7a3a3a" }}
+        title="Delete the active project"
+      >
+        Delete
+      </button>
     </div>
   );
 }
