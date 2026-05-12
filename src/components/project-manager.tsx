@@ -133,8 +133,6 @@ export function ProjectManager() {
     setSaveError(null);
     setActiveId(id);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
-    setActiveId(id);
-    try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     try {
       await waitForLetterer();
       const { data, error: e } = await supabase
