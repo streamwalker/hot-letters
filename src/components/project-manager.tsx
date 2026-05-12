@@ -139,6 +139,8 @@ export function ProjectManager() {
     function onChange() {
       const id = activeIdRef.current;
       if (!loadedRef.current || !id || !window.__letterer) return;
+      dirtyRef.current = true;
+      setHasUnsaved(true);
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
         try {
@@ -149,6 +151,8 @@ export function ProjectManager() {
             .update({ data: payload as never, updated_at: now })
             .eq("id", id);
           if (e) throw e;
+          dirtyRef.current = false;
+          setHasUnsaved(false);
           setProjects((prev) =>
             prev.map((p) => (p.id === id ? { ...p, updated_at: now } : p)),
           );
