@@ -1,37 +1,18 @@
-## Goal
-Make the small and large ships drift across the cityscape on the login screen along **gentle curved paths** instead of nearly-straight horizontal lines, while keeping the slow, peaceful pace.
+## Problem
 
-## Changes (all in `src/styles.css`, plus a small tweak in `src/components/scene-motion.tsx`)
+The "Log out" button in `src/routes/_authenticated/index.tsx` is `position: fixed` at `top: 8, right: 8` with `z-index: 2000`. It floats over the letterer app's top toolbar (`src/letterer-body.html`), covering the rightmost buttons (Undo ↶, Redo ↷, Mobile).
 
-### 1. New curved keyframes (`src/styles.css`)
-Replace the current 3-stop `ship-drift-ltr` / `ship-drift-rtl` keyframes with smoother multi-stop curves that gently rise then dip (or vice versa). Two variants per direction so neighboring ships don't fly in lockstep:
+## Fix
 
-- `ship-curve-ltr-a`: 0% → off-screen left, baseline; 25% → +25vw, −18px; 50% → +50vw, −34px; 75% → +75vw, −12px; 100% → off-screen right, +6px.
-- `ship-curve-ltr-b`: similar but inverted arc (dips down then rises) and slightly different vertical amplitudes (24/40/20px).
-- `ship-curve-rtl-a` / `ship-curve-rtl-b`: mirror versions including `scaleX(-1)` on every stop (current rtl already does this).
-- All keyframes use `cubic-bezier(.45,.05,.55,.95)` style easing applied via the animation declaration (`ease-in-out`) for a gentle, natural arc — no linear timing.
+Reserve space at the right edge of the letterer header so the floating Log out button no longer overlaps it.
 
-Vertical movement stays subtle (max ~40px) so ships still feel like they're drifting horizontally across the skyline, just on a curve.
+1. In `src/letterer.css`, add right-side padding to the `header` rule (e.g. `padding: 0 140px 0 12px`) so toolbar buttons stop before the Log out region. Use a slightly smaller reserved gutter in `body.mobile-mode header` (e.g. `padding-right: 110px`) to match the smaller button.
+2. Keep the Log out button's existing fixed position and z-index — no behavior change, just no overlap.
 
-### 2. Use eased timing (`src/components/scene-motion.tsx`)
-In `Ships`, change the inline `animation` from `linear` to `ease-in-out`, and pick one of the four curve variants per ship:
+### Alternative considered
 
-```
-const variant = rnd(i * 13.7) > 0.5 ? "a" : "b";
-const name = `ship-curve-${dir}-${variant}`;
-animation: `${name} ${s.dur}s ease-in-out ${s.delay}s infinite`,
-```
-
-Slow the pace slightly so the curves read as graceful (large ship: 75s; small ships: 30–55s instead of 22–40s).
-
-### 3. Reduced motion
-Existing `.ship { animation: none !important; }` block under `prefers-reduced-motion` already covers the new keyframes — no change needed.
-
-## Out of scope
-- Cityscape windows/beacons, console screens, points-of-light, hologram emitter — untouched.
-- No changes to ship art, count, sizes, opacity, or z-index.
-- No new assets or dependencies.
+Move the Log out button into the letterer header DOM instead of floating it. Rejected because the auth/logout flow lives in a React route and the letterer header is static HTML mounted by `letterer-bridge.js`; injecting React into it adds complexity for a purely visual issue.
 
 ## Files touched
-- `src/styles.css` — replace the two ship keyframes with four curved variants.
-- `src/components/scene-motion.tsx` — pick variant per ship and switch to `ease-in-out`.
+
+- `src/letterer.css` — add right padding to `header` and `body.mobile-mode header`.
