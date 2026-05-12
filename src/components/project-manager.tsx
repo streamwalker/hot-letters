@@ -173,15 +173,53 @@ export function ProjectManager() {
     return name;
   }
 
+  /**
+   * If `name` collides with an existing project (excluding `excludeId`),
+   * suggest "name (2)", "name (3)", … until one is free. Strips an existing
+   * trailing " (N)" from the base so repeated retries don't snowball.
+   */
+  function suggestUniqueName(name: string, excludeId?: string | null): string {
+    const taken = new Set(
+      projects
+        .filter((p) => p.id !== excludeId)
+        .map((p) => p.name.toLowerCase()),
+    );
+    if (!taken.has(name.toLowerCase())) return name;
+    const base = name.replace(/\s*\(\d+\)\s*$/, "").trim() || name;
+    for (let n = 2; n < 1000; n++) {
+      const candidate = `${base} (${n})`;
+      if (!taken.has(candidate.toLowerCase())) return candidate;
+    }
+    return `${base} ${Date.now()}`;
+  }
+
+  /**
+   * Ask for a name, then if it conflicts offer a unique suggestion the user
+   * can accept (OK), tweak (re-prompt), or cancel. Returns the final accepted
+   * name or null if the user bailed out.
+   */
+  function promptUniqueName(initial: string, excludeId?: string | null): string | null {
+    let candidate = promptName(initial);
+    while (candidate) {
+      const conflicts = projects.some(
+        (p) => p.id !== excludeId && p.name.toLowerCase() === candidate!.toLowerCase(),
+      );
+      if (!conflicts) return candidate;
+      const suggestion = suggestUniqueName(candidate, excludeId);
+      const useIt = window.confirm(
+        `"${candidate}" is already taken.\n\nUse "${suggestion}" instead?\n\n(Cancel to pick a different name.)`,
+      );
+      if (useIt) return suggestion;
+      candidate = promptName(suggestion);
+    }
+    return null;
+  }
+
   async function handleSaveAs() {
     if (!userId || busy) return;
-    const suggested = `${currentName() || "Untitled"} copy`;
-    const name = promptName(suggested);
+    const suggested = suggestUniqueName(`${currentName() || "Untitled"} copy`);
+    const name = promptUniqueName(suggested);
     if (!name) return;
-    if (projects.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
-      window.alert(`A project named "${name}" already exists. Pick a different name.`);
-      return;
-    }
     setBusy(true);
     setError(null);
     try {
@@ -210,12 +248,8 @@ export function ProjectManager() {
 
   async function handleRename() {
     if (!userId || !activeId || busy) return;
-    const name = promptName(currentName());
+    const name = promptUniqueName(currentName(), activeId);
     if (!name || name === currentName()) return;
-    if (projects.some((p) => p.id !== activeId && p.name.toLowerCase() === name.toLowerCase())) {
-      window.alert(`A project named "${name}" already exists.`);
-      return;
-    }
     setBusy(true);
     try {
       const { error: e } = await supabase
