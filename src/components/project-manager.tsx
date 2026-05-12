@@ -156,8 +156,10 @@ export function ProjectManager() {
       if (!loadedRef.current || !id || !window.__letterer) return;
       dirtyRef.current = true;
       setHasUnsaved(true);
+      setSaveStatus("pending");
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
+        setSaveStatus("saving");
         try {
           const payload = window.__letterer!.serialize();
           const now = new Date().toISOString();
@@ -168,11 +170,16 @@ export function ProjectManager() {
           if (e) throw e;
           dirtyRef.current = false;
           setHasUnsaved(false);
+          setSaveStatus("saved");
+          setSaveError(null);
+          setSavedAt(now);
           setProjects((prev) =>
             prev.map((p) => (p.id === id ? { ...p, updated_at: now } : p)),
           );
         } catch (e) {
           console.error("Autosave failed", e);
+          setSaveStatus("error");
+          setSaveError(e instanceof Error ? e.message : String(e));
         }
       }, 1200);
     }
