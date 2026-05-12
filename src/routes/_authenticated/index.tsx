@@ -417,6 +417,7 @@ function Letterer() {
           opacity: 0.55,
         }}
       />
+      <ProjectManager />
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
