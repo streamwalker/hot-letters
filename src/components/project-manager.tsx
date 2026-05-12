@@ -36,6 +36,16 @@ export function ProjectManager() {
   // Tracks whether the editor has changes pending the debounced autosave.
   const dirtyRef = useRef(false);
   const [hasUnsaved, setHasUnsaved] = useState(false);
+  // Autosave status surfaced in the bar.
+  // "idle"   → nothing pending, freshly loaded
+  // "pending"→ user typed; debounce timer running before write
+  // "saving" → write in flight
+  // "saved"  → last write succeeded ("Up to date")
+  // "error"  → last write failed; tooltip carries the message
+  type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
