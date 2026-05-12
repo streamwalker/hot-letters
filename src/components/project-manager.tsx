@@ -347,21 +347,21 @@ export function ProjectManager() {
       <span style={{ fontSize: 11, color: "#a9c2e6", padding: "0 4px" }}>
         Project
       </span>
-      <select
-        value={activeId ?? ""}
-        onChange={(e) => handleSwitch(e.target.value)}
-        disabled={busy || projects.length === 0}
-        aria-label="Active project"
-        style={{
-          ...baseBtn,
-          padding: "5px 8px",
-          maxWidth: 220,
-        }}
-      >
-        {projects.map((p) => (
-          <option key={p.id} value={p.id}>{p.name}</option>
-        ))}
-      </select>
+      <ProjectPicker
+        ref={pickerRef}
+        projects={projects}
+        activeId={activeId}
+        open={pickerOpen}
+        setOpen={setPickerOpen}
+        query={query}
+        setQuery={setQuery}
+        highlight={highlight}
+        setHighlight={setHighlight}
+        searchInputRef={searchInputRef}
+        busy={busy}
+        baseBtn={baseBtn}
+        onPick={(id) => { setPickerOpen(false); setQuery(""); handleSwitch(id); }}
+      />
       <button
         type="button"
         onClick={handleSaveAs}
