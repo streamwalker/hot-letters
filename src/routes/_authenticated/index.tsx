@@ -129,51 +129,6 @@ function Letterer() {
     s2.textContent = bridgeJs as string;
     document.body.appendChild(s2);
 
-    let userId: string | null = null;
-    let saveTimer: ReturnType<typeof setTimeout> | null = null;
-    let loaded = false;
-
-    async function init() {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      userId = u.user.id;
-
-      // Load existing project
-      const { data, error } = await supabase
-        .from("projects")
-        .select("data")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (!error && data?.data && window.__letterer) {
-        try {
-          window.__letterer.load(data.data);
-        } catch (e) {
-          console.error("Failed to load project", e);
-        }
-      }
-      loaded = true;
-    }
-
-    function scheduleSave() {
-      if (!loaded || !userId || !window.__letterer) return;
-      if (saveTimer) clearTimeout(saveTimer);
-      saveTimer = setTimeout(async () => {
-        try {
-          const payload = window.__letterer!.serialize();
-          await supabase
-            .from("projects")
-            .upsert(
-              { user_id: userId!, data: payload as never, updated_at: new Date().toISOString() },
-              { onConflict: "user_id" },
-            );
-        } catch (e) {
-          console.error("Autosave failed", e);
-        }
-      }, 1200);
-    }
-
-    window.addEventListener("letterer:change", scheduleSave);
-
     // ----- Hologram pulse wiring ---------------------------------------
     // Map action buttons → pulse kinds. Capture phase so we fire even if
     // the inner handler stops propagation. Cooldown prevents flooding.
@@ -221,14 +176,10 @@ function Letterer() {
     window.addEventListener("letterer:change", onAutosaveChange);
     // -------------------------------------------------------------------
 
-    init();
-
     return () => {
-      window.removeEventListener("letterer:change", scheduleSave);
       window.removeEventListener("letterer:change", onAutosaveChange);
       document.removeEventListener("click", onClickCapture, true);
       if (autosaveTimer) clearTimeout(autosaveTimer);
-      if (saveTimer) clearTimeout(saveTimer);
       s1.remove();
       s2.remove();
     };
