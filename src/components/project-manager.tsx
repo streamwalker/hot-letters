@@ -24,10 +24,15 @@ export function ProjectManager() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
 
   const activeIdRef = useRef<string | null>(null);
   const loadedRef = useRef(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pickerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
