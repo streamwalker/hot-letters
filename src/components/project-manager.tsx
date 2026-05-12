@@ -129,6 +129,10 @@ export function ProjectManager() {
     loadedRef.current = false;
     dirtyRef.current = false;
     setHasUnsaved(false);
+    setSaveStatus("idle");
+    setSaveError(null);
+    setActiveId(id);
+    try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     setActiveId(id);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     try {
