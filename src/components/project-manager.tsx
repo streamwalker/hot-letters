@@ -327,21 +327,38 @@ export function ProjectManager() {
 
   async function handleSwitch(id: string) {
     if (id === activeId || busy) return;
+
+    // If autosave hasn't caught up yet, ask before leaving — three options:
+    //   OK     → save current edits, then switch
+    //   Cancel → abort the switch and stay on the current project
+    // (Discard isn't offered separately to keep this to a single browser
+    // dialog; users who want to discard can switch back and undo.)
+    if (dirtyRef.current) {
+      const proceed = window.confirm(
+        `"${currentName()}" has unsaved changes.\n\n` +
+        `Save them and switch projects?\n\n` +
+        `(Cancel to stay on this project.)`,
+      );
+      if (!proceed) return;
+    }
+
     // Flush any pending autosave for the outgoing project before switching.
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
-      const out = activeIdRef.current;
-      if (out && window.__letterer) {
-        try {
-          const payload = window.__letterer.serialize();
-          await supabase
-            .from("projects")
-            .update({ data: payload as never, updated_at: new Date().toISOString() })
-            .eq("id", out);
-        } catch (e) {
-          console.error("Flush before switch failed", e);
-        }
+    }
+    const out = activeIdRef.current;
+    if (dirtyRef.current && out && window.__letterer) {
+      try {
+        const payload = window.__letterer.serialize();
+        await supabase
+          .from("projects")
+          .update({ data: payload as never, updated_at: new Date().toISOString() })
+          .eq("id", out);
+        dirtyRef.current = false;
+        setHasUnsaved(false);
+      } catch (e) {
+        console.error("Flush before switch failed", e);
       }
     }
     await loadProject(id);
