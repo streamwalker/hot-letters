@@ -117,6 +117,8 @@ export function ProjectManager() {
 
   async function loadProject(id: string) {
     loadedRef.current = false;
+    dirtyRef.current = false;
+    setHasUnsaved(false);
     setActiveId(id);
     try { localStorage.setItem(ACTIVE_KEY, id); } catch { /* ignore */ }
     try {
