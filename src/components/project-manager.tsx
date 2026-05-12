@@ -36,6 +36,27 @@ export function ProjectManager() {
 
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
+  // Close picker on outside click or Escape; focus search when opened.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onDown(e: MouseEvent) {
+      if (!pickerRef.current) return;
+      if (!pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setPickerOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    // Defer focus so the click that opened the picker doesn't immediately blur it.
+    const t = setTimeout(() => searchInputRef.current?.focus(), 0);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      clearTimeout(t);
+    };
+  }, [pickerOpen]);
+
   // Wait for window.__letterer to be available.
   function waitForLetterer(timeoutMs = 5000): Promise<void> {
     return new Promise((resolve, reject) => {
