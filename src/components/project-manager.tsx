@@ -416,6 +416,20 @@ export function ProjectManager() {
     opacity: busy ? 0.7 : 1,
   };
 
+  // No project chosen yet → show the selection screen instead of the bar.
+  if (!activeId) {
+    return (
+      <ProjectSelectionScreen
+        projects={projects}
+        busy={busy}
+        error={error}
+        onOpen={(id) => loadProject(id)}
+        onStartNew={handleStartNew}
+      />
+    );
+  }
+
+
   return (
     <div
       style={{
