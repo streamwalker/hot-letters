@@ -1923,6 +1923,78 @@ async function inlineGoogleFont(family) {
   return css;
 }
 
+// Convert all <foreignObject> nodes in `root` into native SVG <text> elements.
+// This is required for canvas rasterization: SVGs with foreignObject taint the
+// canvas in Safari/Firefox, causing toBlob/toDataURL to throw SecurityError.
+function foreignObjectsToSvgText(root) {
+  const measureCanvas = document.createElement("canvas");
+  const mctx = measureCanvas.getContext("2d");
+  const fos = Array.from(root.querySelectorAll("foreignObject"));
+  for (const fo of fos) {
+    const x = parseFloat(fo.getAttribute("x")) || 0;
+    const y = parseFloat(fo.getAttribute("y")) || 0;
+    const w = parseFloat(fo.getAttribute("width")) || 0;
+    const h = parseFloat(fo.getAttribute("height")) || 0;
+    const div = fo.querySelector("div");
+    if (!div) { fo.remove(); continue; }
+    const text = (div.innerText || div.textContent || "").replace(/\s+\n/g, "\n");
+    const fontFamily = div.style.fontFamily || "sans-serif";
+    const fontSize = parseFloat(div.style.fontSize) || 16;
+    const fontWeight = div.style.fontWeight || "normal";
+    const fontStyle = div.style.fontStyle || "normal";
+    const color = div.style.color || "#000";
+    const letterSpacing = parseFloat(div.style.letterSpacing) || 0;
+    const lineHeight = fontSize * 1.15;
+
+    mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+    const measure = (s) => {
+      let width = mctx.measureText(s).width;
+      if (letterSpacing) width += Math.max(0, s.length - 1) * letterSpacing;
+      return width;
+    };
+
+    // Word-wrap each paragraph (split on hard newlines).
+    const paragraphs = text.split(/\r?\n/);
+    const lines = [];
+    for (const para of paragraphs) {
+      if (!para) { lines.push(""); continue; }
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) { lines.push(""); continue; }
+      let cur = words[0];
+      for (let i = 1; i < words.length; i++) {
+        const next = cur + " " + words[i];
+        if (measure(next) <= w) cur = next;
+        else { lines.push(cur); cur = words[i]; }
+      }
+      lines.push(cur);
+    }
+
+    const totalH = lines.length * lineHeight;
+    const startY = y + (h - totalH) / 2 + fontSize * 0.85;
+    const cx = x + w / 2;
+
+    const textEl = document.createElementNS(SVG_NS, "text");
+    textEl.setAttribute("text-anchor", "middle");
+    textEl.setAttribute("fill", color);
+    textEl.setAttribute("font-family", fontFamily);
+    textEl.setAttribute("font-size", String(fontSize));
+    textEl.setAttribute("font-weight", String(fontWeight));
+    textEl.setAttribute("font-style", fontStyle);
+    if (letterSpacing) textEl.setAttribute("letter-spacing", String(letterSpacing));
+    textEl.setAttribute("xml:space", "preserve");
+
+    for (let i = 0; i < lines.length; i++) {
+      const tspan = document.createElementNS(SVG_NS, "tspan");
+      tspan.setAttribute("x", String(cx));
+      tspan.setAttribute("y", String(startY + i * lineHeight));
+      tspan.textContent = lines[i];
+      textEl.appendChild(tspan);
+    }
+
+    fo.parentNode.replaceChild(textEl, fo);
+  }
+}
+
 $("btn-export-png").addEventListener("click", async () => {
   if (!state.imageDataUrl) { toast("Load a page image first"); return; }
   // Deselect so selection chrome doesn't render
@@ -1960,8 +2032,9 @@ $("btn-export-png").addEventListener("click", async () => {
     svgClone.setAttribute("xmlns", SVG_NS);
     svgClone.setAttribute("width", w);
     svgClone.setAttribute("height", h);
-    // Strip contentEditable on cloned foreignObject divs (cosmetic).
-    svgClone.querySelectorAll("[contenteditable]").forEach(el => el.removeAttribute("contenteditable"));
+    // CRITICAL: foreignObject taints the canvas in Safari/Firefox ("The operation is insecure").
+    // Convert each foreignObject to native SVG <text> with wrapped tspans for export.
+    foreignObjectsToSvgText(svgClone);
     // Inline used Google Fonts so the SVG has no external network deps.
     if (inlinedCss) {
       const defs = document.createElementNS(SVG_NS, "defs");
