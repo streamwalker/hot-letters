@@ -53,6 +53,27 @@
   window.addEventListener("input", emitChange, true);
   window.addEventListener("change", emitChange, true);
 
-  window.__letterer = { serialize, load };
+  function selectBalloon(id) {
+    if (!id) return false;
+    const b = (state.balloons || []).find(x => x.id === id);
+    if (!b) return false;
+    state.selectedId = id;
+    try { render(); } catch (e) { /* ignore */ }
+    // Scroll the balloon roughly into view by centering the canvas wrap.
+    try {
+      const wrap = document.getElementById("canvas-wrap");
+      if (wrap && typeof b.cx === "number" && typeof b.cy === "number") {
+        const z = state.zoom || 1;
+        wrap.scrollTo({
+          left: Math.max(0, b.cx * z - wrap.clientWidth / 2),
+          top:  Math.max(0, b.cy * z - wrap.clientHeight / 2),
+          behavior: "smooth",
+        });
+      }
+    } catch (e) { /* ignore */ }
+    return true;
+  }
+
+  window.__letterer = { serialize, load, selectBalloon };
   window.dispatchEvent(new CustomEvent("letterer:ready"));
 })();
