@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Ships, ConsoleScreen } from "@/components/scene-motion";
 import { ProjectManager } from "@/components/project-manager";
+import { LetteringTips } from "@/components/lettering-tips";
 import "../../letterer.css";
 import bodyHtml from "../../letterer-body.html?raw";
 import appJs from "../../letterer-app.js?raw";
@@ -420,6 +421,7 @@ function Letterer() {
         }}
       />
       <ProjectManager />
+      <LetteringTips />
       <div
         id="letterer-root"
         dangerouslySetInnerHTML={{ __html: bodyHtml as string }}
