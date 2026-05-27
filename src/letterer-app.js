@@ -1960,8 +1960,9 @@ $("btn-export-png").addEventListener("click", async () => {
     svgClone.setAttribute("xmlns", SVG_NS);
     svgClone.setAttribute("width", w);
     svgClone.setAttribute("height", h);
-    // Strip contentEditable on cloned foreignObject divs (cosmetic).
-    svgClone.querySelectorAll("[contenteditable]").forEach(el => el.removeAttribute("contenteditable"));
+    // CRITICAL: foreignObject taints the canvas in Safari/Firefox ("The operation is insecure").
+    // Convert each foreignObject to native SVG <text> with wrapped tspans for export.
+    foreignObjectsToSvgText(svgClone);
     // Inline used Google Fonts so the SVG has no external network deps.
     if (inlinedCss) {
       const defs = document.createElementNS(SVG_NS, "defs");
