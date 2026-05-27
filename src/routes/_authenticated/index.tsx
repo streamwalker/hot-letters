@@ -46,6 +46,7 @@ declare global {
     __letterer?: {
       serialize: () => unknown;
       load: (data: unknown) => void;
+      selectBalloon?: (id: string) => boolean;
     };
   }
 }

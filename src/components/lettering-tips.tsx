@@ -215,15 +215,7 @@ function runLint(): { issues: Issue[]; balloonCount: number } {
   return { issues, balloonCount: balloons.length };
 }
 
-declare global {
-  interface Window {
-    __letterer?: {
-      serialize: () => unknown;
-      load: (data: unknown) => void;
-      selectBalloon?: (id: string) => boolean;
-    };
-  }
-}
+// Global Window.__letterer is declared in src/routes/_authenticated/index.tsx.
 
 // ---- UI --------------------------------------------------------------------
 
