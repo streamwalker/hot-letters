@@ -82,7 +82,9 @@ export function ProjectManager() {
     });
   }
 
-  // Initial load: fetch projects, restore active or create "Untitled".
+  // Initial load: fetch the user's projects but DO NOT auto-open one.
+  // The user picks an existing project or starts a new one from the
+  // selection screen rendered below.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -97,26 +99,8 @@ export function ProjectManager() {
           .eq("user_id", u.user.id)
           .order("updated_at", { ascending: false });
         if (listErr) throw listErr;
-
-        let list: ProjectRow[] = rows ?? [];
-        // Bootstrap a default project for brand-new users.
-        if (list.length === 0) {
-          const { data: created, error: cErr } = await supabase
-            .from("projects")
-            .insert({ user_id: u.user.id, name: "Untitled", data: {} })
-            .select("id, name, updated_at")
-            .single();
-          if (cErr) throw cErr;
-          list = [created as ProjectRow];
-        }
         if (cancelled) return;
-        setProjects(list);
-
-        const stored = (() => {
-          try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
-        })();
-        const initial = list.find((p) => p.id === stored) ?? list[0];
-        await loadProject(initial.id);
+        setProjects(rows ?? []);
       } catch (e) {
         console.error("ProjectManager init failed", e);
         setError(e instanceof Error ? e.message : String(e));
@@ -124,6 +108,41 @@ export function ProjectManager() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleStartNew() {
+    if (!userId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await waitForLetterer();
+      // Reset the editor to a blank state before creating the row, so the
+      // new project doesn't inherit any leftover in-memory content.
+      if (window.__letterer) {
+        try { window.__letterer.load({}); } catch { /* ignore */ }
+      }
+      const name = suggestUniqueName("Untitled");
+      const payload = window.__letterer ? window.__letterer.serialize() : {};
+      const { data, error: e } = await supabase
+        .from("projects")
+        .insert({ user_id: userId, name, data: payload as never })
+        .select("id, name, updated_at")
+        .single();
+      if (e) throw e;
+      const row = data as ProjectRow;
+      setProjects((prev) => [row, ...prev]);
+      setActiveId(row.id);
+      try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
+      loadedRef.current = true;
+      setSaveStatus("idle");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Start new project failed", e);
+      setError(msg);
+      window.alert(`Could not start a new project: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadProject(id: string) {
     loadedRef.current = false;
