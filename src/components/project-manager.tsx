@@ -82,7 +82,9 @@ export function ProjectManager() {
     });
   }
 
-  // Initial load: fetch projects, restore active or create "Untitled".
+  // Initial load: fetch the user's projects but DO NOT auto-open one.
+  // The user picks an existing project or starts a new one from the
+  // selection screen rendered below.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -97,26 +99,8 @@ export function ProjectManager() {
           .eq("user_id", u.user.id)
           .order("updated_at", { ascending: false });
         if (listErr) throw listErr;
-
-        let list: ProjectRow[] = rows ?? [];
-        // Bootstrap a default project for brand-new users.
-        if (list.length === 0) {
-          const { data: created, error: cErr } = await supabase
-            .from("projects")
-            .insert({ user_id: u.user.id, name: "Untitled", data: {} })
-            .select("id, name, updated_at")
-            .single();
-          if (cErr) throw cErr;
-          list = [created as ProjectRow];
-        }
         if (cancelled) return;
-        setProjects(list);
-
-        const stored = (() => {
-          try { return localStorage.getItem(ACTIVE_KEY); } catch { return null; }
-        })();
-        const initial = list.find((p) => p.id === stored) ?? list[0];
-        await loadProject(initial.id);
+        setProjects(rows ?? []);
       } catch (e) {
         console.error("ProjectManager init failed", e);
         setError(e instanceof Error ? e.message : String(e));
@@ -124,6 +108,41 @@ export function ProjectManager() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  async function handleStartNew() {
+    if (!userId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await waitForLetterer();
+      // Reset the editor to a blank state before creating the row, so the
+      // new project doesn't inherit any leftover in-memory content.
+      if (window.__letterer) {
+        try { window.__letterer.load({}); } catch { /* ignore */ }
+      }
+      const name = suggestUniqueName("Untitled");
+      const payload = window.__letterer ? window.__letterer.serialize() : {};
+      const { data, error: e } = await supabase
+        .from("projects")
+        .insert({ user_id: userId, name, data: payload as never })
+        .select("id, name, updated_at")
+        .single();
+      if (e) throw e;
+      const row = data as ProjectRow;
+      setProjects((prev) => [row, ...prev]);
+      setActiveId(row.id);
+      try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
+      loadedRef.current = true;
+      setSaveStatus("idle");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Start new project failed", e);
+      setError(msg);
+      window.alert(`Could not start a new project: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function loadProject(id: string) {
     loadedRef.current = false;
@@ -317,22 +336,14 @@ export function ProjectManager() {
       if (remaining.length > 0) {
         await loadProject(remaining[0].id);
       } else {
-        // Bootstrap a fresh Untitled so the user always has a project.
+        // No projects left — return to the selection screen instead of
+        // auto-creating one. The user picks "Start new project" there.
         loadedRef.current = false;
         if (window.__letterer) {
           try { window.__letterer.load({}); } catch { /* ignore */ }
         }
-        const { data: created, error: cErr } = await supabase
-          .from("projects")
-          .insert({ user_id: userId, name: "Untitled", data: {} })
-          .select("id, name, updated_at")
-          .single();
-        if (cErr) throw cErr;
-        const row = created as ProjectRow;
-        setProjects([row]);
-        setActiveId(row.id);
-        try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
-        loadedRef.current = true;
+        setActiveId(null);
+        try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -404,6 +415,20 @@ export function ProjectManager() {
     cursor: busy ? "wait" : "pointer",
     opacity: busy ? 0.7 : 1,
   };
+
+  // No project chosen yet → show the selection screen instead of the bar.
+  if (!activeId) {
+    return (
+      <ProjectSelectionScreen
+        projects={projects}
+        busy={busy}
+        error={error}
+        onOpen={(id) => loadProject(id)}
+        onStartNew={handleStartNew}
+      />
+    );
+  }
+
 
   return (
     <div
@@ -712,4 +737,165 @@ function relativeTime(iso: string): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.round(m / 60);
   return `${h}h ago`;
+}
+
+/**
+ * Full-screen project selection shown when no project is active. Lists the
+ * user's saved projects and offers a "Start new project" option, replacing
+ * the old behavior of auto-jumping to the last opened project.
+ */
+function ProjectSelectionScreen({
+  projects, busy, error, onOpen, onStartNew,
+}: {
+  projects: ProjectRow[];
+  busy: boolean;
+  error: string | null;
+  onOpen: (id: string) => void;
+  onStartNew: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="proj-select-title"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2400,
+        background: "rgba(8, 18, 36, 0.78)",
+        backdropFilter: "blur(6px)",
+        WebkitBackdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        fontFamily:
+          "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 520,
+          background: "rgba(20, 26, 38, 0.98)",
+          color: "#e6f1ff",
+          border: "1px solid rgba(120, 180, 255, 0.25)",
+          borderRadius: 14,
+          boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+          padding: 22,
+        }}
+      >
+        <h2
+          id="proj-select-title"
+          style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: 0.4 }}
+        >
+          What would you like to work on?
+        </h2>
+        <p style={{ margin: "6px 0 16px", fontSize: 13, color: "#a9c2e6" }}>
+          Pick a saved project to continue, or start a new one.
+        </p>
+
+        <button
+          type="button"
+          onClick={onStartNew}
+          disabled={busy}
+          style={{
+            display: "block",
+            width: "100%",
+            background: "linear-gradient(180deg, #3a7bd5 0%, #1e4a8a 100%)",
+            color: "#ffffff",
+            border: "1px solid rgba(180, 210, 255, 0.4)",
+            padding: "10px 14px",
+            borderRadius: 8,
+            fontSize: 13,
+            fontWeight: 700,
+            letterSpacing: 0.4,
+            cursor: busy ? "wait" : "pointer",
+            opacity: busy ? 0.7 : 1,
+            marginBottom: 16,
+            boxShadow: "0 6px 16px rgba(30, 74, 138, 0.45)",
+          }}
+        >
+          + Start new project
+        </button>
+
+        <div
+          style={{
+            fontSize: 11,
+            color: "#8aa0bf",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+            margin: "4px 2px 6px",
+          }}
+        >
+          Saved projects ({projects.length})
+        </div>
+
+        <div
+          style={{
+            maxHeight: 320,
+            overflowY: "auto",
+            border: "1px solid #2c3543",
+            borderRadius: 8,
+            background: "#11151d",
+          }}
+        >
+          {projects.length === 0 ? (
+            <div style={{ padding: "14px 12px", color: "#8aa0bf", fontSize: 13 }}>
+              You don't have any saved projects yet.
+            </div>
+          ) : (
+            projects.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onOpen(p.id)}
+                disabled={busy}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  background: "transparent",
+                  color: "#e6f1ff",
+                  border: "none",
+                  borderBottom: "1px solid #1d2330",
+                  padding: "10px 12px",
+                  fontSize: 13,
+                  cursor: busy ? "wait" : "pointer",
+                  textAlign: "left",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#1b212c";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                }}
+              >
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    paddingRight: 12,
+                  }}
+                >
+                  {p.name}
+                </span>
+                <span style={{ fontSize: 11, color: "#8aa0bf", whiteSpace: "nowrap" }}>
+                  {relativeTime(p.updated_at)}
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+
+        {error && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, color: "#e05a5a" }}>
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
