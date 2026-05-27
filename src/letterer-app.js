@@ -1931,6 +1931,68 @@ function foreignObjectsToSvgText(root, balloons) {
   const mctx = measureCanvas.getContext("2d");
   const byId = new Map((balloons || []).map(b => [b.id, b]));
   const fos = Array.from(root.querySelectorAll("foreignObject"));
+
+  // Wrap `text` to fit within `widthAt(i, total)` per line; never let any line overflow
+  // even if a single word is too wide (in which case break the word).
+  function wrapText(text, fontStyle, fontWeight, fontFamily, fontSize, letterSpacing, widthAt) {
+    mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+    const measure = (s) => {
+      let w = mctx.measureText(s).width;
+      if (letterSpacing) w += Math.max(0, s.length - 1) * letterSpacing;
+      return w;
+    };
+    // Hard-break a single token that exceeds maxW into chunks <= maxW.
+    const breakWord = (word, maxW) => {
+      const parts = [];
+      let buf = "";
+      for (const ch of word) {
+        if (measure(buf + ch) <= maxW) buf += ch;
+        else { if (buf) parts.push(buf); buf = ch; }
+      }
+      if (buf) parts.push(buf);
+      return parts.length ? parts : [word];
+    };
+
+    const paragraphs = text.split(/\r?\n/);
+    // Two-pass: we don't know the final line count yet, so use an upper-bound width
+    // (widest of all lines) for an initial pass, then re-wrap if needed.
+    let lines = [];
+    let pass = 0;
+    let estLines = Math.max(1, paragraphs.length);
+    while (pass < 4) {
+      lines = [];
+      const maxAllowed = widthAt(estLines);
+      for (const para of paragraphs) {
+        if (!para) { lines.push(""); continue; }
+        const words = para.split(/\s+/).filter(Boolean);
+        if (!words.length) { lines.push(""); continue; }
+        let cur = "";
+        for (let i = 0; i < words.length; i++) {
+          let word = words[i];
+          // If the word alone is wider than the line, hard-break it.
+          if (measure(word) > maxAllowed) {
+            if (cur) { lines.push(cur); cur = ""; }
+            const chunks = breakWord(word, maxAllowed);
+            for (let c = 0; c < chunks.length - 1; c++) lines.push(chunks[c]);
+            cur = chunks[chunks.length - 1];
+            continue;
+          }
+          const next = cur ? cur + " " + word : word;
+          if (measure(next) <= maxAllowed) cur = next;
+          else { lines.push(cur); cur = word; }
+        }
+        if (cur) lines.push(cur);
+      }
+      if (lines.length === estLines) break;
+      estLines = lines.length;
+      pass++;
+    }
+    // Final measurement of widest line.
+    let widest = 0;
+    for (const ln of lines) widest = Math.max(widest, measure(ln));
+    return { lines, widest, measure };
+  }
+
   for (const fo of fos) {
     const x = parseFloat(fo.getAttribute("x")) || 0;
     const y = parseFloat(fo.getAttribute("y")) || 0;
@@ -1938,47 +2000,67 @@ function foreignObjectsToSvgText(root, balloons) {
     const h = parseFloat(fo.getAttribute("height")) || 0;
     const div = fo.querySelector("div");
     if (!div) { fo.remove(); continue; }
-    // Look up the authoritative balloon text from state via the parent <g data-id="...">.
-    // We cannot rely on div.innerText here because the clone is detached from the document,
-    // and div.textContent concatenates block children with no whitespace (losing spaces
-    // between lines, e.g. "STILL\nA" becomes "STILLA").
     const idEl = fo.closest("[data-id]");
     const balloon = idEl ? byId.get(idEl.getAttribute("data-id")) : null;
     const text = (balloon?.text ?? div.textContent ?? "").replace(/\s+\n/g, "\n");
     const fontFamily = div.style.fontFamily || "sans-serif";
-    const fontSize = parseFloat(div.style.fontSize) || 16;
+    let fontSize = parseFloat(div.style.fontSize) || 16;
     const fontWeight = div.style.fontWeight || "normal";
     const fontStyle = div.style.fontStyle || "normal";
     const color = div.style.color || "#000";
     const letterSpacing = parseFloat(div.style.letterSpacing) || 0;
-    const lineHeight = fontSize * 1.15;
 
-    mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
-    const measure = (s) => {
-      let width = mctx.measureText(s).width;
-      if (letterSpacing) width += Math.max(0, s.length - 1) * letterSpacing;
-      return width;
+    // Balloon geometry (in image-pixel space). Use the balloon record so we know
+    // its true shape; the foreignObject is a rectangle inscribed inside it.
+    const cx = balloon ? balloon.cx : x + w / 2;
+    const cy = balloon ? balloon.cy : y + h / 2;
+    const rx = balloon ? balloon.rx : w / 2;
+    const ry = balloon ? balloon.ry : h / 2;
+    const isOval = !balloon || balloon.shape === "ellipse" || balloon.shape === "cloud" || balloon.shape === "burst";
+
+    // Inset from the balloon edge so text never touches the stroke. Burst/cloud have
+    // wavy outlines so they need more room than a clean ellipse.
+    const edgeInset = (balloon?.shape === "burst") ? 0.22
+                    : (balloon?.shape === "cloud") ? 0.16
+                    : isOval ? 0.10 : 0.08;
+
+    // Compute the maximum line width allowed when the block will be `numLines` tall.
+    // For ovals, the narrowest line in the block sits closest to top/bottom; we size
+    // the wrap width to that narrowest row so no line escapes the curve.
+    const widthAt = (numLines) => {
+      const lineH = fontSize * 1.18;
+      const blockH = Math.max(lineH, numLines * lineH);
+      if (!isOval) {
+        return Math.max(8, w - 2 * (w * edgeInset));
+      }
+      // Half-height of the top/bottom-most line, relative to balloon center.
+      const yOff = blockH / 2;
+      const safeRy = ry * (1 - edgeInset);
+      const safeRx = rx * (1 - edgeInset);
+      const t = Math.min(1, Math.abs(yOff) / safeRy);
+      const halfW = safeRx * Math.sqrt(Math.max(0, 1 - t * t));
+      return Math.max(8, 2 * halfW);
     };
 
-    // Word-wrap each paragraph (split on hard newlines).
-    const paragraphs = text.split(/\r?\n/);
-    const lines = [];
-    for (const para of paragraphs) {
-      if (!para) { lines.push(""); continue; }
-      const words = para.split(/\s+/).filter(Boolean);
-      if (!words.length) { lines.push(""); continue; }
-      let cur = words[0];
-      for (let i = 1; i < words.length; i++) {
-        const next = cur + " " + words[i];
-        if (measure(next) <= w) cur = next;
-        else { lines.push(cur); cur = words[i]; }
-      }
-      lines.push(cur);
+    // Try the current font size; if the block is too tall to fit, shrink and retry.
+    const minSize = Math.max(8, fontSize * 0.55);
+    let lines, widest;
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const r = wrapText(text, fontStyle, fontWeight, fontFamily, fontSize, letterSpacing, widthAt);
+      lines = r.lines; widest = r.widest;
+      const lineH = fontSize * 1.18;
+      const blockH = lines.length * lineH;
+      const safeH = isOval ? 2 * ry * (1 - edgeInset) : h;
+      if (blockH <= safeH && widest <= widthAt(lines.length) + 0.5) break;
+      if (fontSize <= minSize) break;
+      fontSize = Math.max(minSize, fontSize * 0.94);
     }
 
+    const lineHeight = fontSize * 1.18;
     const totalH = lines.length * lineHeight;
-    const startY = y + (h - totalH) / 2 + fontSize * 0.85;
-    const cx = x + w / 2;
+    // Center the block vertically in the balloon, then move down by ~0.78em so the
+    // first baseline sits at the top of the visible block.
+    const startY = cy - totalH / 2 + fontSize * 0.82;
 
     const textEl = document.createElementNS(SVG_NS, "text");
     textEl.setAttribute("text-anchor", "middle");
