@@ -449,28 +449,36 @@ function parseScriptRegex(text) {
   let speaker = null, mod = "", buffer = [];
   let currentPanel = null, currentPage = null;
 
-  // Speaker cue with explicit colon (standard comic script): "CHARACTER:" or "CHARACTER (MOD):"
+  // Speaker cue with explicit colon: "CHARACTER:" or "CHARACTER (MOD):"
   const cueColon = /^\s*([A-Z][A-Z0-9 _'\.\-]{0,40}?)\s*(?:\(([^)]+)\))?\s*:\s*(.*)$/;
-  // Speaker cue without colon (Celtx / Final Draft): the whole line is just the name (and optional mod).
+  // Speaker cue without colon (Celtx / Final Draft / user's format): line is just the name + optional mod.
   const cueNoColon = /^\s*([A-Z][A-Z0-9 _'\.\-]{1,40}?)\s*(?:\(([^)]+)\))?\s*$/;
-  // Panel headers in three common forms.
-  const panelExplicit = /^\s*panel\s+(\d+)\b/i;        // "PANEL 1", "Panel 1"
-  const panelDash = /^\s*(\d+)\s*[-–—]\s+\S/;          // "1 - description" (Celtx)
-  const pageRe = /^\s*page\s+(\d+)\b/i;                // "PAGE 10", "Page 10"
-  // Words that look like cues but should be ignored.
+  // Panel headers.
+  const panelExplicit = /^\s*panel\s+(\d+)\b/i;        // "PANEL 1"
+  const panelDash = /^\s*(\d+)\s*[-–—]\s+\S/;          // "1 - description" (Celtx / user format)
+  const pageRe = /^\s*page\s+(\d+)\b/i;                // "PAGE 10"
   const reservedNames = /^(PAGE|PANEL|NOTE|FX|END|FIN|CONT|TBC)$/i;
+  // Celtx / screenwriter artifacts to drop.
+  const pageNumOnly = /^\s*\d+\s*\.?\s*$/;             // "20.", "10"
+  const celtxFooter = /^\s*Created using Celtx\s*$/i;
+  const revisionMark = /\s*\*+\s*$/;                   // Celtx revision asterisk at end of line
+
+  function normalize(txt) {
+    return txt
+      .replace(/^\.{2,}/, "…")        // "....Yes" → "…Yes"
+      .replace(/\.{3,}/g, "…")        // internal "..." → "…"
+      .replace(/--/g, "—")            // em-dash
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 
   function flush() {
     if (speaker && buffer.length) {
-      let txt = buffer.join(" ").replace(/\s+/g, " ").trim();
+      let txt = normalize(buffer.join(" "));
       if (txt) {
         let m = mod;
-        // Blambot foreign-language convention: <text> → TRANSLATED, strip brackets.
         const transMatch = txt.match(/^<\s*(.+?)\s*>$/);
-        if (transMatch && !m) {
-          txt = transMatch[1];
-          m = "TRANSLATED";
-        }
+        if (transMatch && !m) { txt = transMatch[1]; m = "TRANSLATED"; }
         if (speaker === "CAPTION") m = "CAPTION";
         else if (speaker === "SFX") m = "SFX";
         out.push({
@@ -484,27 +492,24 @@ function parseScriptRegex(text) {
   }
 
   for (const raw of lines) {
-    const line = raw.trim();
+    // Strip Celtx trailing revision asterisk, then trim.
+    let line = raw.replace(revisionMark, "").trim();
 
-    // Blank line ends a dialogue block.
     if (!line) { flush(); continue; }
+    if (celtxFooter.test(line)) { flush(); continue; }
+    if (pageNumOnly.test(line)) { flush(); continue; }
 
-    // Page header
     let mm = line.match(pageRe);
     if (mm) { flush(); currentPage = parseInt(mm[1], 10); currentPanel = null; continue; }
 
-    // Panel header — explicit "PANEL 1"
     mm = line.match(panelExplicit);
     if (mm) { flush(); currentPanel = parseInt(mm[1], 10); continue; }
 
-    // Panel header — Celtx "1 - description" form. Only treat as a panel marker when not currently
-    // collecting dialogue (otherwise "1 - " inside dialogue would be misread).
     if (!speaker) {
       mm = line.match(panelDash);
       if (mm) { flush(); currentPanel = parseInt(mm[1], 10); continue; }
     }
 
-    // Speaker cue with colon (preferred format).
     let m = line.match(cueColon);
     if (m) {
       const name = m[1].trim();
@@ -517,8 +522,6 @@ function parseScriptRegex(text) {
       continue;
     }
 
-    // Speaker cue without colon (Celtx / Final Draft). Conservative: only when not currently
-    // collecting dialogue, and reject reserved words.
     if (!speaker) {
       m = line.match(cueNoColon);
       if (m) {
@@ -532,7 +535,6 @@ function parseScriptRegex(text) {
       }
     }
 
-    // Continuation of the current speaker's dialogue.
     if (speaker) buffer.push(line);
     // Else: panel description — ignored.
   }
