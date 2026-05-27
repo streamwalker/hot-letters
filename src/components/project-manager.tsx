@@ -336,22 +336,14 @@ export function ProjectManager() {
       if (remaining.length > 0) {
         await loadProject(remaining[0].id);
       } else {
-        // Bootstrap a fresh Untitled so the user always has a project.
+        // No projects left — return to the selection screen instead of
+        // auto-creating one. The user picks "Start new project" there.
         loadedRef.current = false;
         if (window.__letterer) {
           try { window.__letterer.load({}); } catch { /* ignore */ }
         }
-        const { data: created, error: cErr } = await supabase
-          .from("projects")
-          .insert({ user_id: userId, name: "Untitled", data: {} })
-          .select("id, name, updated_at")
-          .single();
-        if (cErr) throw cErr;
-        const row = created as ProjectRow;
-        setProjects([row]);
-        setActiveId(row.id);
-        try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
-        loadedRef.current = true;
+        setActiveId(null);
+        try { localStorage.removeItem(ACTIVE_KEY); } catch { /* ignore */ }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
