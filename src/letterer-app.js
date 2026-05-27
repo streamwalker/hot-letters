@@ -1926,9 +1926,10 @@ async function inlineGoogleFont(family) {
 // Convert all <foreignObject> nodes in `root` into native SVG <text> elements.
 // This is required for canvas rasterization: SVGs with foreignObject taint the
 // canvas in Safari/Firefox, causing toBlob/toDataURL to throw SecurityError.
-function foreignObjectsToSvgText(root) {
+function foreignObjectsToSvgText(root, balloons) {
   const measureCanvas = document.createElement("canvas");
   const mctx = measureCanvas.getContext("2d");
+  const byId = new Map((balloons || []).map(b => [b.id, b]));
   const fos = Array.from(root.querySelectorAll("foreignObject"));
   for (const fo of fos) {
     const x = parseFloat(fo.getAttribute("x")) || 0;
@@ -1937,7 +1938,13 @@ function foreignObjectsToSvgText(root) {
     const h = parseFloat(fo.getAttribute("height")) || 0;
     const div = fo.querySelector("div");
     if (!div) { fo.remove(); continue; }
-    const text = (div.innerText || div.textContent || "").replace(/\s+\n/g, "\n");
+    // Look up the authoritative balloon text from state via the parent <g data-id="...">.
+    // We cannot rely on div.innerText here because the clone is detached from the document,
+    // and div.textContent concatenates block children with no whitespace (losing spaces
+    // between lines, e.g. "STILL\nA" becomes "STILLA").
+    const idEl = fo.closest("[data-id]");
+    const balloon = idEl ? byId.get(idEl.getAttribute("data-id")) : null;
+    const text = (balloon?.text ?? div.textContent ?? "").replace(/\s+\n/g, "\n");
     const fontFamily = div.style.fontFamily || "sans-serif";
     const fontSize = parseFloat(div.style.fontSize) || 16;
     const fontWeight = div.style.fontWeight || "normal";
