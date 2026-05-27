@@ -1,18 +1,41 @@
-## Problem
+## What happened
 
-The "Log out" button in `src/routes/_authenticated/index.tsx` is `position: fixed` at `top: 8, right: 8` with `z-index: 2000`. It floats over the letterer app's top toolbar (`src/letterer-body.html`), covering the rightmost buttons (Undo ↶, Redo ↷, Mobile).
+The exported PNG shows text mashed together ("STILLA", "ANDMISSING", "DESPERATELYNEED") and overflowing the balloon shapes. The cause is in the `foreignObjectsToSvgText()` helper added in the previous fix (`src/letterer-app.js` ~line 1929).
+
+That helper runs on a **cloned, detached** copy of the overlay SVG:
+
+```js
+const svgClone = overlay.cloneNode(true);
+...
+foreignObjectsToSvgText(svgClone);
+```
+
+Inside the helper it reads the balloon text with:
+
+```js
+const text = (div.innerText || div.textContent || "").replace(/\s+\n/g, "\n");
+```
+
+`Element.innerText` requires the node to be attached to a rendered document — on a detached clone it returns an empty string, so the code falls through to `textContent`. `textContent` concatenates child `<div>` / `<br>` lines with no whitespace, so a balloon whose live DOM is:
+
+```html
+<div>STILL</div><div>A LOT OF INJURED AND</div><div>MISSING...</div>
+```
+
+becomes the single string `"STILLA LOT OF INJURED ANDMISSING..."`. The word-wrap loop then re-wraps that and produces "STILLA", "ANDMISSING", etc. The same loss-of-line-breaks also makes the text longer than the helper expected, which is why several balloons overflow their shapes.
 
 ## Fix
 
-Reserve space at the right edge of the letterer header so the floating Log out button no longer overlaps it.
+Stop relying on `innerText` of a detached clone. The raw, authoritative text for every balloon already exists in `state.balloons[i].text`. Use that.
 
-1. In `src/letterer.css`, add right-side padding to the `header` rule (e.g. `padding: 0 140px 0 12px`) so toolbar buttons stop before the Log out region. Use a slightly smaller reserved gutter in `body.mobile-mode header` (e.g. `padding-right: 110px`) to match the smaller button.
-2. Keep the Log out button's existing fixed position and z-index — no behavior change, just no overlap.
+1. In `src/letterer-app.js`, change `foreignObjectsToSvgText(root)` to accept the balloon list (or read from `state.balloons`) and look up each `<foreignObject>`'s balloon by walking up to the nearest `[data-id]` ancestor.
+2. Use `state.balloons[id].text` as the source string instead of `div.innerText`. This preserves real newlines from the editor and keeps every space between words.
+3. Keep reading font-family / size / weight / style / color / letter-spacing from `div.style` exactly as today so the visual styling is unchanged.
+4. Keep the existing word-wrap + centered-tspan layout. With the correct source text the wrapped lines will once again fit the balloon width the editor used.
+5. Update the call site to pass the balloon list: `foreignObjectsToSvgText(svgClone, state.balloons)`.
 
-### Alternative considered
-
-Move the Log out button into the letterer header DOM instead of floating it. Rejected because the auth/logout flow lives in a React route and the letterer header is static HTML mounted by `letterer-bridge.js`; injecting React into it adds complexity for a purely visual issue.
+No other export logic changes; the `foreignObject`→`<text>` conversion is still required to avoid the canvas-taint `SecurityError` in Safari/Firefox.
 
 ## Files touched
 
-- `src/letterer.css` — add right padding to `header` and `body.mobile-mode header`.
+- `src/letterer-app.js` — rewrite the text-source line inside `foreignObjectsToSvgText` and its single call site.
