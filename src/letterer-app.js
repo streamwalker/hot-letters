@@ -2128,6 +2128,9 @@ document.querySelectorAll("#mobile-tabbar button").forEach(btn => {
       const sel = getSelected();
       if (sel) { autoFormatBalloon(sel); render(); toast("Formatted"); }
       else toast("Select a balloon first");
+    } else if (tab === "desktop") {
+      setMobileMode(false);
+      toast("Switched to desktop view");
     } else {
       openSheet(tab);
     }
