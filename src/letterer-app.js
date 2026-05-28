@@ -21,7 +21,47 @@ const state = {
   defaultTailW: null,
   // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
   connectPickerSourceId: null,
+  // When true, the exported image overlays measured line boxes + the computed
+  // oval/box safe area so wrapping and auto-shrink behaviour can be verified.
+  debugTextFit: false,
+  // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
+  // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
+  shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
 };
+
+// Map a balloon shape name to one of the four inset categories.
+function shapeInsetCategory(shapeName) {
+  const s = (shapeName || "oval").toLowerCase();
+  if (s === "burst") return "burst";
+  if (s === "cloud") return "cloud";
+  if (s === "rect" || s === "box" || s === "caption" || s === "square") return "box";
+  return "oval";
+}
+
+// Resolve the effective text inset (0..0.4) for a balloon: explicit override wins,
+// otherwise the configurable per-shape default.
+function getEffectiveInset(b) {
+  if (b && typeof b.edgeInset === "number") {
+    return Math.max(0, Math.min(0.4, b.edgeInset));
+  }
+  const cat = shapeInsetCategory(b && b.shape);
+  const v = state.shapeInsets && state.shapeInsets[cat];
+  return (typeof v === "number") ? Math.max(0, Math.min(0.4, v)) : 0.1;
+}
+
+// Reflect state.shapeInsets values into the shape-default slider UI.
+function syncShapeInsetInputs() {
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const pct = Math.round((state.shapeInsets[cat] ?? 0.1) * 100);
+    el.value = String(pct);
+    const valEl = document.getElementById(id + "-val");
+    if (valEl) valEl.textContent = pct + "%";
+  });
+}
+
+
 
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
@@ -148,6 +188,7 @@ function snapshotState() {
     nextId: state.nextId,
     parsedLines: state.parsedLines,
     defaultTailW: state.defaultTailW,
+    shapeInsets: state.shapeInsets,
   });
 }
 function pushUndo() {
@@ -161,6 +202,10 @@ function applySnapshot(snap) {
   state.nextId = data.nextId || 1;
   state.parsedLines = data.parsedLines || [];
   state.defaultTailW = (typeof data.defaultTailW === "number") ? data.defaultTailW : null;
+  if (data.shapeInsets && typeof data.shapeInsets === "object") {
+    state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+  }
+  syncShapeInsetInputs();
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
@@ -1025,12 +1070,7 @@ function render() {
     const isOvalShape = shapeName === "oval" || shapeName === "ellipse" || shapeName === "thought"
       || shapeName === "whisper" || shapeName === "round" || shapeName === "radio"
       || shapeName === "cloud" || shapeName === "burst";
-    const shapeDefaultInset = (shapeName === "burst") ? 0.22
-                            : (shapeName === "cloud") ? 0.16
-                            : isOvalShape ? 0.10 : 0.08;
-    const edgeInsetPv = (typeof b.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, b.edgeInset))
-      : shapeDefaultInset;
+    const edgeInsetPv = getEffectiveInset(b);
     let w, h;
     if (isOvalShape) {
       // Largest rectangle inscribed in the ellipse, then apply the edge inset.
@@ -1595,6 +1635,16 @@ function bindInspector() {
     withSel(b => { b.edgeInset = (v < 0) ? null : (v / 100); });
     $("i-inset-val").textContent = v < 0 ? "auto" : (v + "%");
   });
+  // Per-shape default inset sliders.
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    $(id).addEventListener("input", () => {
+      const v = +$(id).value;
+      state.shapeInsets[cat] = v / 100;
+      $(id + "-val").textContent = v + "%";
+      render();
+    });
+  });
+  syncShapeInsetInputs();
   $("btn-connect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
@@ -2249,6 +2299,7 @@ $("btn-save").addEventListener("click", () => {
     scriptPhotos: scriptPhotos,
     nextId: state.nextId,
     defaultTailW: state.defaultTailW,
+    shapeInsets: state.shapeInsets,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
@@ -2277,6 +2328,8 @@ $("file-load").addEventListener("change", (e) => {
       scriptPhotos = data.scriptPhotos || [];
       state.nextId = data.nextId || (state.balloons.length + 1);
       if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
+      if (data.shapeInsets && typeof data.shapeInsets === "object") state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+      syncShapeInsetInputs();
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
       renderChips();
@@ -2348,7 +2401,7 @@ async function inlineGoogleFont(family) {
 // Convert all <foreignObject> nodes in `root` into native SVG <text> elements.
 // This is required for canvas rasterization: SVGs with foreignObject taint the
 // canvas in Safari/Firefox, causing toBlob/toDataURL to throw SecurityError.
-function foreignObjectsToSvgText(root, balloons) {
+function foreignObjectsToSvgText(root, balloons, debug) {
   const measureCanvas = document.createElement("canvas");
   const mctx = measureCanvas.getContext("2d");
   const byId = new Map((balloons || []).map(b => [b.id, b]));
@@ -2443,13 +2496,9 @@ function foreignObjectsToSvgText(root, balloons) {
     // Inset from the balloon edge so text never touches the stroke. Burst/cloud have
     // wavy outlines so they need more room than a clean ellipse. A per-balloon
     // `edgeInset` override (0..0.4) replaces the shape default — useful for
-    // fine-tuning tight layouts where the default crops or wastes space.
-    const shapeDefault = (balloon?.shape === "burst") ? 0.22
-                       : (balloon?.shape === "cloud") ? 0.16
-                       : isOval ? 0.10 : 0.08;
-    const edgeInset = (balloon && typeof balloon.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, balloon.edgeInset))
-      : shapeDefault;
+    // fine-tuning tight layouts where the default crops or wastes space. When auto,
+    // the configurable per-shape default (state.shapeInsets) is used.
+    const edgeInset = getEffectiveInset(balloon);
 
     // Compute the maximum line width allowed when the block will be `numLines` tall.
     // For ovals, the narrowest line in the block sits closest to top/bottom; we size
@@ -2507,6 +2556,69 @@ function foreignObjectsToSvgText(root, balloons) {
       textEl.appendChild(tspan);
     }
 
+    // Debug overlay: measured per-line boxes + the computed safe area. Drawn as a
+    // sibling group so it sits above the text and is easy to strip out.
+    if (debug) {
+      const dbg = document.createElementNS(SVG_NS, "g");
+      dbg.setAttribute("data-debug-textfit", "1");
+      mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+
+      // Safe area: ellipse for ovals, rect for boxes.
+      if (isOval) {
+        const ell = document.createElementNS(SVG_NS, "ellipse");
+        ell.setAttribute("cx", String(cx));
+        ell.setAttribute("cy", String(cy));
+        ell.setAttribute("rx", String(rx * (1 - edgeInset)));
+        ell.setAttribute("ry", String(ry * (1 - edgeInset)));
+        ell.setAttribute("fill", "none");
+        ell.setAttribute("stroke", "#00b3ff");
+        ell.setAttribute("stroke-width", "1.5");
+        ell.setAttribute("stroke-dasharray", "6 4");
+        dbg.appendChild(ell);
+      } else {
+        const safeW = w - 2 * (w * edgeInset);
+        const safeRect = document.createElementNS(SVG_NS, "rect");
+        safeRect.setAttribute("x", String(cx - safeW / 2));
+        safeRect.setAttribute("y", String(cy - h / 2));
+        safeRect.setAttribute("width", String(safeW));
+        safeRect.setAttribute("height", String(h));
+        safeRect.setAttribute("fill", "none");
+        safeRect.setAttribute("stroke", "#00b3ff");
+        safeRect.setAttribute("stroke-width", "1.5");
+        safeRect.setAttribute("stroke-dasharray", "6 4");
+        dbg.appendChild(safeRect);
+      }
+
+      // Per-line measured boxes (width = measured text width, height = lineHeight).
+      for (let i = 0; i < lines.length; i++) {
+        const lw = mctx.measureText(lines[i]).width + (letterSpacing * Math.max(0, lines[i].length - 1));
+        const boxTop = (startY + i * lineHeight) - fontSize * 0.82;
+        const overflow = lw > widthAt(lines.length) + 0.5;
+        const rect = document.createElementNS(SVG_NS, "rect");
+        rect.setAttribute("x", String(cx - lw / 2));
+        rect.setAttribute("y", String(boxTop));
+        rect.setAttribute("width", String(Math.max(1, lw)));
+        rect.setAttribute("height", String(lineHeight));
+        rect.setAttribute("fill", overflow ? "rgba(255,0,0,0.12)" : "rgba(0,255,120,0.10)");
+        rect.setAttribute("stroke", overflow ? "#ff2d2d" : "#16c060");
+        rect.setAttribute("stroke-width", "1");
+        dbg.appendChild(rect);
+      }
+
+      // Label: final font size + line count.
+      const label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("x", String(cx));
+      label.setAttribute("y", String(cy - ry * (1 - edgeInset) - 4));
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("fill", "#00b3ff");
+      label.setAttribute("font-family", "monospace");
+      label.setAttribute("font-size", "11");
+      label.textContent = `${Math.round(fontSize)}px · ${lines.length}L`;
+      dbg.appendChild(label);
+
+      fo.parentNode.insertBefore(dbg, fo.nextSibling);
+    }
+
     fo.parentNode.replaceChild(textEl, fo);
   }
 }
@@ -2550,7 +2662,7 @@ $("btn-export-png").addEventListener("click", async () => {
     svgClone.setAttribute("height", h);
     // CRITICAL: foreignObject taints the canvas in Safari/Firefox ("The operation is insecure").
     // Convert each foreignObject to native SVG <text> with wrapped tspans for export.
-    foreignObjectsToSvgText(svgClone, state.balloons);
+    foreignObjectsToSvgText(svgClone, state.balloons, state.debugTextFit);
     // Inline used Google Fonts so the SVG has no external network deps.
     if (inlinedCss) {
       const defs = document.createElementNS(SVG_NS, "defs");
@@ -2593,6 +2705,17 @@ $("btn-reading-order").addEventListener("click", () => {
   render();
   if (state.showTrail) toast(state.balloons.length ? `Reading order shown — ${state.balloons.length} balloon${state.balloons.length===1?"":"s"}` : "Reading order shown — drop balloons to see numbering");
 });
+
+// ============== TEXT FIT DEBUG TOGGLE ==============
+$("btn-text-fit-debug").addEventListener("click", () => {
+  state.debugTextFit = !state.debugTextFit;
+  $("btn-text-fit-debug").classList.toggle("active", state.debugTextFit);
+  toast(state.debugTextFit
+    ? "Text Fit Debug ON — exported PNG will show line boxes + safe area"
+    : "Text Fit Debug OFF");
+});
+
+
 
 // ============== SIDE-BY-SIDE SCRIPT VIEWER ==============
 state.sideBySide = false;

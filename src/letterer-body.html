@@ -5,6 +5,7 @@
   <button id="btn-add-balloon">+ Add Balloon</button>
   <button id="btn-side-by-side" title="View script photo and comic page side by side">Script View</button>
   <button id="btn-reading-order" title="Show numbered reading order and trail (Klein-style)">Reading Order</button>
+  <button id="btn-text-fit-debug" title="Overlay measured line boxes and the computed oval safe area in the exported image to verify wrapping/shrinking">Text Fit Debug</button>
   <span class="spacer"></span>
   <button id="btn-zoom-out">−</button>
   <span id="zoom-label" style="font-size:11px;color:var(--text-dim);min-width:40px;text-align:center;">100%</span>
@@ -239,9 +240,34 @@ KRAKKK"></textarea>
         <div class="field" style="margin-top:8px;">
           <label>Text inset from edge (export) — <span id="i-inset-val">auto</span></label>
           <input type="range" id="i-inset" min="-1" max="40" step="1" value="-1" style="width:100%;">
-          <p style="font-size:10px;color:var(--text-dim);margin:4px 0 0;line-height:1.4;">How tightly the exported text hugs the balloon outline. Slide left for tighter; right for more padding. Set to <em>auto</em> (full left) to use the shape default (burst 22%, cloud 16%, oval 10%, box 8%).</p>
+          <p style="font-size:10px;color:var(--text-dim);margin:4px 0 0;line-height:1.4;">How tightly the exported text hugs the balloon outline. Slide left for tighter; right for more padding. Set to <em>auto</em> (full left) to use the shape default below.</p>
+        </div>
+        <div class="field" style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+          <label>Shape default insets (auto)</label>
+          <p style="font-size:10px;color:var(--text-dim);margin:2px 0 6px;line-height:1.4;">Applied to every balloon set to <em>auto</em>, by shape. Tune how close text gets to each outline type.</p>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:11px;width:48px;">Burst</span>
+            <input type="range" id="si-burst" min="0" max="40" step="1" style="flex:1;">
+            <span id="si-burst-val" style="font-size:11px;width:32px;text-align:right;">22%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:11px;width:48px;">Cloud</span>
+            <input type="range" id="si-cloud" min="0" max="40" step="1" style="flex:1;">
+            <span id="si-cloud-val" style="font-size:11px;width:32px;text-align:right;">16%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:11px;width:48px;">Oval</span>
+            <input type="range" id="si-oval" min="0" max="40" step="1" style="flex:1;">
+            <span id="si-oval-val" style="font-size:11px;width:32px;text-align:right;">10%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;width:48px;">Box</span>
+            <input type="range" id="si-box" min="0" max="40" step="1" style="flex:1;">
+            <span id="si-box-val" style="font-size:11px;width:32px;text-align:right;">8%</span>
+          </div>
         </div>
       </div>
+
 
       <div class="section">
         <h3>Connect / Split</h3>
