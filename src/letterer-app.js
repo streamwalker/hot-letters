@@ -146,6 +146,7 @@ function snapshotState() {
     balloons: state.balloons,
     nextId: state.nextId,
     parsedLines: state.parsedLines,
+    defaultTailW: state.defaultTailW,
   });
 }
 function pushUndo() {
@@ -158,6 +159,7 @@ function applySnapshot(snap) {
   state.balloons = data.balloons || [];
   state.nextId = data.nextId || 1;
   state.parsedLines = data.parsedLines || [];
+  state.defaultTailW = (typeof data.defaultTailW === "number") ? data.defaultTailW : null;
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
