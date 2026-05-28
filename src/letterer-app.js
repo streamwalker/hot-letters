@@ -1414,6 +1414,26 @@ let drag = null;
 
 function onBalloonPointerDown(e, b) {
   e.stopPropagation();
+  // Connect-balloon picker: if a source is armed, treat this click as the target
+  if (state.connectPickerSourceId && state.connectPickerSourceId !== b.id) {
+    const src = state.balloons.find(x => x.id === state.connectPickerSourceId);
+    if (src) {
+      pushUndo();
+      // Clear any existing connectors on either side, then bind both ways
+      [src, b].forEach(x => {
+        if (x.connectedTo) {
+          const p = state.balloons.find(y => y.id === x.connectedTo);
+          if (p) p.connectedTo = null;
+        }
+      });
+      src.connectedTo = b.id;
+      b.connectedTo = src.id;
+    }
+    state.connectPickerSourceId = null;
+    selectBalloon(b.id);
+    toast("Balloons connected");
+    return;
+  }
   selectBalloon(b.id);
   const start = clientToImage(e.clientX, e.clientY);
   drag = { type: "move", b, ox: b.cx - start.x, oy: b.cy - start.y, otx: b.tailX - start.x, oty: b.tailY - start.y };
