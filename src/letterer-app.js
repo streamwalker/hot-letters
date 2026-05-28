@@ -1617,6 +1617,16 @@ function bindInspector() {
     withSel(b => { b.edgeInset = (v < 0) ? null : (v / 100); });
     $("i-inset-val").textContent = v < 0 ? "auto" : (v + "%");
   });
+  // Per-shape default inset sliders.
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    $(id).addEventListener("input", () => {
+      const v = +$(id).value;
+      state.shapeInsets[cat] = v / 100;
+      $(id + "-val").textContent = v + "%";
+      render();
+    });
+  });
+  syncShapeInsetInputs();
   $("btn-connect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
