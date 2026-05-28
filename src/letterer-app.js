@@ -934,7 +934,7 @@ function render() {
       //   (b) cloud/burst/rect + point tail → mask the body's stroke inside the tail polygon so the
       //       internal seam where the tail attaches is hidden, while the body's perimeter remains visible
       //   (c) anything with bubbles tail or no tail → original separate rendering (no seam to hide)
-      if (b.tail && b.tailStyle === "point" && b.shape === "ellipse") {
+      if (b.tail && b.tailStyle === "point" && b.shape === "ellipse" && b.outline !== "dashed" && !b.organic) {
         const path = document.createElementNS(SVG_NS, "path");
         path.setAttribute("d", makeUnifiedEllipsePath(b));
         path.setAttribute("fill", b.fill);
