@@ -2102,6 +2102,7 @@ $("file-load").addEventListener("change", (e) => {
       state.parsedLines = data.parsedLines || [];
       scriptPhotos = data.scriptPhotos || [];
       state.nextId = data.nextId || (state.balloons.length + 1);
+      if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
       renderChips();
