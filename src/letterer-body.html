@@ -218,17 +218,33 @@ KRAKKK"></textarea>
             <select id="i-tail-style">
               <option value="point">Point</option>
               <option value="bubbles">Bubbles (thought)</option>
+              <option value="offpanel">Off-Panel (curving)</option>
             </select>
           </div>
         </div>
-        <p style="font-size:10px;color:var(--text-dim);margin:4px 0 0;">Drag the blue dot on the canvas to point the tail at the speaker.</p>
+        <button id="btn-match-tail-o" style="margin-top:6px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:6px;border-radius:4px;cursor:pointer;font-size:11px;" title="Blambot rule #006: match tail width to the width of letter 'O' in your dialogue font">Match Tail Width to "O" (all balloons)</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:4px 0 0;">Drag the blue dot on the canvas to point the tail at the speaker. Off-Panel tails curve out toward an unseen speaker.</p>
+      </div>
+
+      <div class="section">
+        <h3>Balloon Edges</h3>
+        <div class="field-row">
+          <input type="checkbox" id="i-organic">
+          <label style="margin:0;" title="Subtle hand-drawn irregularity (Blambot #019)">Organic (hand-drawn)</label>
+        </div>
+        <div class="field-row" style="margin-top:4px;">
+          <input type="checkbox" id="i-dashed">
+          <label style="margin:0;" title="Dashed outline — whispers, radio, sotto voce">Dashed outline</label>
+        </div>
       </div>
 
       <div class="section">
         <h3>Connect / Split</h3>
-        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;">Split into Two Balloons</button>
-        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;">Unlink Balloons</button>
-        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">Split creates a "double bubble" — two joined balloons for the same speaker, often used to show a beat or pause between two thoughts.</p>
+        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;">Split into Joined Pair</button>
+        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
+        <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
+        <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Split</strong> creates a "double bubble" — two balloons whose bodies merge into one silhouette (a Join).<br><strong>Connect</strong> links two balloons with a narrow tube — the Balloon Connector from Fig. 5.1.</p>
       </div>
 
       <div class="section">
