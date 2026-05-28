@@ -2401,7 +2401,7 @@ async function inlineGoogleFont(family) {
 // Convert all <foreignObject> nodes in `root` into native SVG <text> elements.
 // This is required for canvas rasterization: SVGs with foreignObject taint the
 // canvas in Safari/Firefox, causing toBlob/toDataURL to throw SecurityError.
-function foreignObjectsToSvgText(root, balloons) {
+function foreignObjectsToSvgText(root, balloons, debug) {
   const measureCanvas = document.createElement("canvas");
   const mctx = measureCanvas.getContext("2d");
   const byId = new Map((balloons || []).map(b => [b.id, b]));
