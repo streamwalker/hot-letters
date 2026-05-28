@@ -21,7 +21,44 @@ const state = {
   defaultTailW: null,
   // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
   connectPickerSourceId: null,
+  // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
+  // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
+  shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
 };
+
+// Map a balloon shape name to one of the four inset categories.
+function shapeInsetCategory(shapeName) {
+  const s = (shapeName || "oval").toLowerCase();
+  if (s === "burst") return "burst";
+  if (s === "cloud") return "cloud";
+  if (s === "rect" || s === "box" || s === "caption" || s === "square") return "box";
+  return "oval";
+}
+
+// Resolve the effective text inset (0..0.4) for a balloon: explicit override wins,
+// otherwise the configurable per-shape default.
+function getEffectiveInset(b) {
+  if (b && typeof b.edgeInset === "number") {
+    return Math.max(0, Math.min(0.4, b.edgeInset));
+  }
+  const cat = shapeInsetCategory(b && b.shape);
+  const v = state.shapeInsets && state.shapeInsets[cat];
+  return (typeof v === "number") ? Math.max(0, Math.min(0.4, v)) : 0.1;
+}
+
+// Reflect state.shapeInsets values into the shape-default slider UI.
+function syncShapeInsetInputs() {
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const pct = Math.round((state.shapeInsets[cat] ?? 0.1) * 100);
+    el.value = String(pct);
+    const valEl = document.getElementById(id + "-val");
+    if (valEl) valEl.textContent = pct + "%";
+  });
+}
+
+
 
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
@@ -148,6 +185,7 @@ function snapshotState() {
     nextId: state.nextId,
     parsedLines: state.parsedLines,
     defaultTailW: state.defaultTailW,
+    shapeInsets: state.shapeInsets,
   });
 }
 function pushUndo() {
@@ -161,6 +199,10 @@ function applySnapshot(snap) {
   state.nextId = data.nextId || 1;
   state.parsedLines = data.parsedLines || [];
   state.defaultTailW = (typeof data.defaultTailW === "number") ? data.defaultTailW : null;
+  if (data.shapeInsets && typeof data.shapeInsets === "object") {
+    state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+  }
+  syncShapeInsetInputs();
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
@@ -1025,12 +1067,7 @@ function render() {
     const isOvalShape = shapeName === "oval" || shapeName === "ellipse" || shapeName === "thought"
       || shapeName === "whisper" || shapeName === "round" || shapeName === "radio"
       || shapeName === "cloud" || shapeName === "burst";
-    const shapeDefaultInset = (shapeName === "burst") ? 0.22
-                            : (shapeName === "cloud") ? 0.16
-                            : isOvalShape ? 0.10 : 0.08;
-    const edgeInsetPv = (typeof b.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, b.edgeInset))
-      : shapeDefaultInset;
+    const edgeInsetPv = getEffectiveInset(b);
     let w, h;
     if (isOvalShape) {
       // Largest rectangle inscribed in the ellipse, then apply the edge inset.
@@ -1595,6 +1632,16 @@ function bindInspector() {
     withSel(b => { b.edgeInset = (v < 0) ? null : (v / 100); });
     $("i-inset-val").textContent = v < 0 ? "auto" : (v + "%");
   });
+  // Per-shape default inset sliders.
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    $(id).addEventListener("input", () => {
+      const v = +$(id).value;
+      state.shapeInsets[cat] = v / 100;
+      $(id + "-val").textContent = v + "%";
+      render();
+    });
+  });
+  syncShapeInsetInputs();
   $("btn-connect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
@@ -2249,6 +2296,7 @@ $("btn-save").addEventListener("click", () => {
     scriptPhotos: scriptPhotos,
     nextId: state.nextId,
     defaultTailW: state.defaultTailW,
+    shapeInsets: state.shapeInsets,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
@@ -2277,6 +2325,8 @@ $("file-load").addEventListener("change", (e) => {
       scriptPhotos = data.scriptPhotos || [];
       state.nextId = data.nextId || (state.balloons.length + 1);
       if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
+      if (data.shapeInsets && typeof data.shapeInsets === "object") state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+      syncShapeInsetInputs();
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
       renderChips();
@@ -2443,13 +2493,9 @@ function foreignObjectsToSvgText(root, balloons) {
     // Inset from the balloon edge so text never touches the stroke. Burst/cloud have
     // wavy outlines so they need more room than a clean ellipse. A per-balloon
     // `edgeInset` override (0..0.4) replaces the shape default — useful for
-    // fine-tuning tight layouts where the default crops or wastes space.
-    const shapeDefault = (balloon?.shape === "burst") ? 0.22
-                       : (balloon?.shape === "cloud") ? 0.16
-                       : isOval ? 0.10 : 0.08;
-    const edgeInset = (balloon && typeof balloon.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, balloon.edgeInset))
-      : shapeDefault;
+    // fine-tuning tight layouts where the default crops or wastes space. When auto,
+    // the configurable per-shape default (state.shapeInsets) is used.
+    const edgeInset = getEffectiveInset(balloon);
 
     // Compute the maximum line width allowed when the block will be `numLines` tall.
     // For ovals, the narrowest line in the block sits closest to top/bottom; we size
