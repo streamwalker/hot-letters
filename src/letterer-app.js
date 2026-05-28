@@ -21,6 +21,9 @@ const state = {
   defaultTailW: null,
   // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
   connectPickerSourceId: null,
+  // When true, the exported image overlays measured line boxes + the computed
+  // oval/box safe area so wrapping and auto-shrink behaviour can be verified.
+  debugTextFit: false,
   // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
   // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
   shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
