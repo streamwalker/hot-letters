@@ -1048,12 +1048,7 @@ function render() {
     const isOvalShape = shapeName === "oval" || shapeName === "ellipse" || shapeName === "thought"
       || shapeName === "whisper" || shapeName === "round" || shapeName === "radio"
       || shapeName === "cloud" || shapeName === "burst";
-    const shapeDefaultInset = (shapeName === "burst") ? 0.22
-                            : (shapeName === "cloud") ? 0.16
-                            : isOvalShape ? 0.10 : 0.08;
-    const edgeInsetPv = (typeof b.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, b.edgeInset))
-      : shapeDefaultInset;
+    const edgeInsetPv = getEffectiveInset(b);
     let w, h;
     if (isOvalShape) {
       // Largest rectangle inscribed in the ellipse, then apply the edge inset.
