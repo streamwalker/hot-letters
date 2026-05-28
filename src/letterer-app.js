@@ -16,26 +16,29 @@ const state = {
   selectedId: null,
   nextId: 1,
   parsedLines: [], // {id, who, mod, text, placed}
+  // Blambot rule #006: a page should have a single consistent tail width tied to the dialogue
+  // font's letter-"O" opening. When set, new balloons inherit this instead of the preset's tailW.
+  defaultTailW: null,
+  // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
+  connectPickerSourceId: null,
 };
 
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
 // in the inspector.
+// `outline: "dashed"` triggers a dashed stroke on the body (whisper / radio conventions).
 const PRESETS = {
-  speech:     { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "normal", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  thought:    { shape: "cloud",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "bubbles", tailW: 12 },
-  shout:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2.5, font: "'Bangers', Impact, sans-serif", size: 22, weight: 700, italic: "normal", tracking: 0.5, textColor: "#000000", tail: true, tailStyle: "point", tailW: 16 },
-  whisper:    { shape: "ellipse", fill: "#ffffff", stroke: "#666666", strokeW: 1.5, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 13, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 10 },
-  // Blambot WEAK: dialogue diminished — even smaller, more washed-out than whisper. Used for
-  // dying or barely-conscious characters.
-  weak:       { shape: "ellipse", fill: "#ffffff", stroke: "#999999", strokeW: 1, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 11, weight: 400, italic: "italic", tracking: 0, textColor: "#666666", tail: true, tailStyle: "point", tailW: 8 },
-  // Blambot SINGING: handwritten/script font, italic, surrounded by music notes when applied.
-  singing:    { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Kalam', cursive", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  // Blambot TRANSLATED (foreign-language): italic with a tinted balloon background to signal that
-  // the dialogue is being rendered in English from another language.
-  translated: { shape: "ellipse", fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  caption:    { shape: "rect",    fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 700, italic: "normal", tracking: 0, textColor: "#000000", tail: false, tailStyle: "point", tailW: 12 },
-  sfx:        { shape: "ellipse", fill: "transparent", stroke: "transparent", strokeW: 0, font: "'Bangers', Impact, sans-serif", size: 48, weight: 700, italic: "normal", tracking: 1, textColor: "#ffd400", tail: false, tailStyle: "point", tailW: 12 },
+  speech:     { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "normal", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  thought:    { shape: "cloud",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "bubbles", tailW: 12, outline: "solid", organic: false },
+  shout:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2.5, font: "'Bangers', Impact, sans-serif", size: 22, weight: 700, italic: "normal", tracking: 0.5, textColor: "#000000", tail: true, tailStyle: "point", tailW: 16, outline: "solid", organic: false },
+  whisper:    { shape: "ellipse", fill: "#ffffff", stroke: "#666666", strokeW: 1.5, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 13, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 10, outline: "dashed", organic: false },
+  weak:       { shape: "ellipse", fill: "#ffffff", stroke: "#999999", strokeW: 1, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 11, weight: 400, italic: "italic", tracking: 0, textColor: "#666666", tail: true, tailStyle: "point", tailW: 8, outline: "solid", organic: false },
+  singing:    { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Kalam', cursive", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  translated: { shape: "ellipse", fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  // Blambot RADIO/TRANSMISSION: jagged burst silhouette + dashed outline, italic.
+  radio:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 12, outline: "dashed", organic: false },
+  caption:    { shape: "rect",    fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 700, italic: "normal", tracking: 0, textColor: "#000000", tail: false, tailStyle: "point", tailW: 12, outline: "solid", organic: false },
+  sfx:        { shape: "ellipse", fill: "transparent", stroke: "transparent", strokeW: 0, font: "'Bangers', Impact, sans-serif", size: 48, weight: 700, italic: "normal", tracking: 1, textColor: "#ffd400", tail: false, tailStyle: "point", tailW: 12, outline: "solid", organic: false },
 };
 
 function uid() { return "b" + (state.nextId++); }
@@ -48,10 +51,11 @@ function cloneBalloon(text, modifier) {
   else if (modifier === "WEAK") preset = "weak";
   else if (modifier === "SINGING" || modifier === "SING") preset = "singing";
   else if (modifier === "TRANSLATED" || modifier === "FOREIGN") preset = "translated";
+  else if (modifier === "RADIO" || modifier === "TRANSMISSION") preset = "radio";
   else if (modifier === "CAPTION") preset = "caption";
   else if (modifier === "SFX") preset = "sfx";
   const p = PRESETS[preset];
-  return {
+  const b = {
     id: uid(),
     text: text || "Hello!",
     cx: state.imageW / 2,
@@ -59,8 +63,12 @@ function cloneBalloon(text, modifier) {
     rx: 100, ry: 50,
     tailX: state.imageW / 2,
     tailY: state.imageH / 2,
+    connectedTo: null,
     ...JSON.parse(JSON.stringify(p)),
   };
+  // Page-level tail-width default takes priority over preset (Blambot #006 consistency rule).
+  if (typeof state.defaultTailW === "number" && state.defaultTailW > 0) b.tailW = state.defaultTailW;
+  return b;
 }
 
 // ============== DOM REFS ==============
