@@ -2461,13 +2461,9 @@ function foreignObjectsToSvgText(root, balloons) {
     // Inset from the balloon edge so text never touches the stroke. Burst/cloud have
     // wavy outlines so they need more room than a clean ellipse. A per-balloon
     // `edgeInset` override (0..0.4) replaces the shape default — useful for
-    // fine-tuning tight layouts where the default crops or wastes space.
-    const shapeDefault = (balloon?.shape === "burst") ? 0.22
-                       : (balloon?.shape === "cloud") ? 0.16
-                       : isOval ? 0.10 : 0.08;
-    const edgeInset = (balloon && typeof balloon.edgeInset === "number")
-      ? Math.max(0, Math.min(0.4, balloon.edgeInset))
-      : shapeDefault;
+    // fine-tuning tight layouts where the default crops or wastes space. When auto,
+    // the configurable per-shape default (state.shapeInsets) is used.
+    const edgeInset = getEffectiveInset(balloon);
 
     // Compute the maximum line width allowed when the block will be `numLines` tall.
     // For ovals, the narrowest line in the block sits closest to top/bottom; we size
