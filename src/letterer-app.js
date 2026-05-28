@@ -2074,6 +2074,7 @@ $("btn-save").addEventListener("click", () => {
     parsedLines: state.parsedLines,
     scriptPhotos: scriptPhotos,
     nextId: state.nextId,
+    defaultTailW: state.defaultTailW,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
