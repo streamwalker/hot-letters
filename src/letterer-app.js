@@ -2565,6 +2565,14 @@ window.addEventListener("keydown", (e) => {
   const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable);
   const isMod = e.metaKey || e.ctrlKey;
 
+  // Esc cancels the connect-balloon picker
+  if (e.key === "Escape" && state.connectPickerSourceId) {
+    state.connectPickerSourceId = null;
+    syncInspector();
+    toast("Connect cancelled");
+    return;
+  }
+
   // Undo / Redo (do not fire while typing in an input/textarea/contenteditable — let the browser
   // handle native text undo there).
   if (isMod && !isEditing) {
