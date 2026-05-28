@@ -1778,10 +1778,13 @@ function fitToTargets(words, targets, budgetW, ctx, sentenceBreakIdx) {
     }
     lines.push(cur.join(" "));
   }
+  let overflow = false;
   if (i < words.length) {
     // Append leftover words to the last line.
     lines[lines.length - 1] = lines[lines.length - 1] + " " + words.slice(i).join(" ");
+    overflow = true;
   }
+  lines.overflow = overflow;
   return lines;
 }
 
