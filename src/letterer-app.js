@@ -2398,6 +2398,156 @@ async function inlineGoogleFont(family) {
   return css;
 }
 
+// ============== SHARED TEXT-FIT LAYOUT ==============
+// Pure layout solver that mirrors the export wrap+shrink+safe-area math exactly,
+// without touching the DOM. Returns the final lines, font size, widest measured
+// line, and whether everything stays inside the balloon's safe area. The export
+// path and the regression gallery both rely on this identical formula so the
+// gallery faithfully verifies real export behaviour.
+const _layoutMeasureCtx = (() => {
+  const c = document.createElement("canvas");
+  return c.getContext("2d");
+})();
+
+function computeBalloonTextLayout(b) {
+  const mctx = _layoutMeasureCtx;
+  const text = (b.text ?? "").replace(/\s+\n/g, "\n");
+  const fontFamily = b.font || "sans-serif";
+  const fontWeight = b.weight || "normal";
+  const fontStyle = b.italic || "normal";
+  const letterSpacing = b.tracking || 0;
+  let fontSize = b.size || 16;
+
+  const rx = b.rx, ry = b.ry;
+  const shape = (b.shape || "oval").toLowerCase();
+  const isOval = shape === "ellipse" || shape === "oval" || shape === "cloud"
+    || shape === "burst" || shape === "thought" || shape === "whisper"
+    || shape === "round" || shape === "radio";
+  const edgeInset = getEffectiveInset(b);
+  // The foreignObject box used for non-oval shapes mirrors the render() math.
+  const foW = isOval ? (rx * 2 / Math.SQRT2) * (1 - edgeInset) : (rx * 2 - 28);
+  const foH = isOval ? (ry * 2 / Math.SQRT2) * (1 - edgeInset) : (ry * 2 - 16);
+
+  const measure = (s) => {
+    let w = mctx.measureText(s).width;
+    if (letterSpacing) w += Math.max(0, s.length - 1) * letterSpacing;
+    return w;
+  };
+  const widthAt = (numLines) => {
+    const lineH = fontSize * 1.18;
+    const blockH = Math.max(lineH, numLines * lineH);
+    if (!isOval) return Math.max(8, foW - 2 * (foW * edgeInset));
+    const yOff = blockH / 2;
+    const safeRy = ry * (1 - edgeInset);
+    const safeRx = rx * (1 - edgeInset);
+    const t = Math.min(1, Math.abs(yOff) / safeRy);
+    const halfW = safeRx * Math.sqrt(Math.max(0, 1 - t * t));
+    return Math.max(8, 2 * halfW);
+  };
+  const breakWord = (word, maxW) => {
+    const parts = []; let buf = "";
+    for (const ch of word) {
+      if (measure(buf + ch) <= maxW) buf += ch;
+      else { if (buf) parts.push(buf); buf = ch; }
+    }
+    if (buf) parts.push(buf);
+    return parts.length ? parts : [word];
+  };
+  const wrap = () => {
+    mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+    const paragraphs = text.split(/\r?\n/);
+    let lines = []; let pass = 0; let estLines = Math.max(1, paragraphs.length);
+    while (pass < 4) {
+      lines = [];
+      const maxAllowed = widthAt(estLines);
+      for (const para of paragraphs) {
+        if (!para) { lines.push(""); continue; }
+        const words = para.split(/\s+/).filter(Boolean);
+        if (!words.length) { lines.push(""); continue; }
+        let cur = "";
+        for (let i = 0; i < words.length; i++) {
+          const word = words[i];
+          if (measure(word) > maxAllowed) {
+            if (cur) { lines.push(cur); cur = ""; }
+            const chunks = breakWord(word, maxAllowed);
+            for (let c = 0; c < chunks.length - 1; c++) lines.push(chunks[c]);
+            cur = chunks[chunks.length - 1];
+            continue;
+          }
+          const next = cur ? cur + " " + word : word;
+          if (measure(next) <= maxAllowed) cur = next;
+          else { lines.push(cur); cur = word; }
+        }
+        if (cur) lines.push(cur);
+      }
+      if (lines.length === estLines) break;
+      estLines = lines.length; pass++;
+    }
+    let widest = 0;
+    for (const ln of lines) widest = Math.max(widest, measure(ln));
+    return { lines, widest };
+  };
+
+  const minSize = Math.max(8, (b.size || 16) * 0.55);
+  let lines, widest, fits = false;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const r = wrap();
+    lines = r.lines; widest = r.widest;
+    const lineH = fontSize * 1.18;
+    const blockH = lines.length * lineH;
+    const safeH = isOval ? 2 * ry * (1 - edgeInset) : foH;
+    if (blockH <= safeH && widest <= widthAt(lines.length) + 0.5) { fits = true; break; }
+    if (fontSize <= minSize) { fits = false; break; }
+    fontSize = Math.max(minSize, fontSize * 0.94);
+  }
+  const lineH = fontSize * 1.18;
+  const blockH = lines.length * lineH;
+  const safeH = isOval ? 2 * ry * (1 - edgeInset) : foH;
+  const maxWidthAllowed = widthAt(lines.length);
+  return {
+    lines, fontSize: Math.round(fontSize * 10) / 10, widest: Math.round(widest),
+    maxWidthAllowed: Math.round(maxWidthAllowed), blockH: Math.round(blockH),
+    safeH: Math.round(safeH), fits,
+    widthOverflow: Math.max(0, Math.round(widest - (maxWidthAllowed + 0.5))),
+    heightOverflow: Math.max(0, Math.round(blockH - safeH)),
+  };
+}
+
+// ============== REGRESSION GALLERY (worst-case text fit) ==============
+// A curated set of pathological balloon contents that have historically broken
+// wrapping or auto-shrink. Each case is laid out with the real solver above and
+// verified to stay within the balloon's safe area.
+const TEXT_FIT_GALLERY = [
+  { name: "Long unbreakable token", shape: "ellipse", rx: 100, ry: 50, text: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" },
+  { name: "URL with no spaces", shape: "ellipse", rx: 110, ry: 55, text: "https://www.example.com/really/long/path?query=value&more=stuff" },
+  { name: "Many tiny words", shape: "ellipse", rx: 120, ry: 60, text: "a a a a a a a a a a a a a a a a a a a a a a a a a a a a a a" },
+  { name: "Huge paragraph", shape: "ellipse", rx: 130, ry: 65, text: "CAPTAIN RHEA! THE RYUKEN WILL MAINTAIN GEOSYNCHRONOUS ORBIT OVER CONSTERYA MINOR AS OUR LAST LINE OF DEFENSE. IF THE NEPTUNIANS OR THE GAIANS REACH THE LUMINATOR, THERE WON'T BE ANYONE LEFT TO SAVE." },
+  { name: "Hyphen-heavy compound", shape: "ellipse", rx: 100, ry: 50, text: "ANTI-MATTER-CONTAINMENT-FIELD-GENERATOR-OVERLOAD-IMMINENT" },
+  { name: "Forced newlines", shape: "ellipse", rx: 100, ry: 60, text: "ONE\nTWO\nTHREE\nFOUR\nFIVE\nSIX\nSEVEN\nEIGHT" },
+  { name: "Burst tiny balloon", shape: "burst", rx: 70, ry: 45, text: "WHAAAAAAAAAAAAAAAAAT?!?!" },
+  { name: "Caption box long", shape: "rect", rx: 140, ry: 40, text: "MEANWHILE, ACROSS THE SHATTERED REMAINS OF THE OUTER COLONIES, A NEW THREAT STIRS IN THE DARK BETWEEN STARS." },
+  { name: "Single giant word", shape: "ellipse", rx: 90, ry: 45, text: "SUPERCALIFRAGILISTICEXPIALIDOCIOUS" },
+  { name: "Punctuation storm", shape: "ellipse", rx: 95, ry: 48, text: "!!!???...---,,,;;;:::!!!???...---,,,;;;:::" },
+];
+
+function runTextFitRegression() {
+  const results = [];
+  for (const c of TEXT_FIT_GALLERY) {
+    const b = {
+      text: c.text, shape: c.shape, rx: c.rx, ry: c.ry,
+      cx: c.rx + 10, cy: c.ry + 10,
+      font: c.font || "Arial, sans-serif",
+      size: c.size || 16, weight: c.weight || 400, italic: c.italic || "normal",
+      tracking: c.tracking || 0, edgeInset: typeof c.edgeInset === "number" ? c.edgeInset : null,
+    };
+    const layout = computeBalloonTextLayout(b);
+    results.push({ name: c.name, ...layout });
+  }
+  return results;
+}
+
+
+
 // Convert all <foreignObject> nodes in `root` into native SVG <text> elements.
 // This is required for canvas rasterization: SVGs with foreignObject taint the
 // canvas in Safari/Firefox, causing toBlob/toDataURL to throw SecurityError.
