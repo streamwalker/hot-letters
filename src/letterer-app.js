@@ -46,6 +46,20 @@ function getEffectiveInset(b) {
   return (typeof v === "number") ? Math.max(0, Math.min(0.4, v)) : 0.1;
 }
 
+// Reflect state.shapeInsets values into the shape-default slider UI.
+function syncShapeInsetInputs() {
+  [["si-burst", "burst"], ["si-cloud", "cloud"], ["si-oval", "oval"], ["si-box", "box"]].forEach(([id, cat]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const pct = Math.round((state.shapeInsets[cat] ?? 0.1) * 100);
+    el.value = String(pct);
+    const valEl = document.getElementById(id + "-val");
+    if (valEl) valEl.textContent = pct + "%";
+  });
+}
+
+
+
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
 // in the inspector.
