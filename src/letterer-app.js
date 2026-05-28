@@ -773,7 +773,12 @@ function placeChipOnCanvas(ln, pt) {
   b.tailX = pt.x; b.tailY = pt.y + 80;
   // Light auto-balance on drop (preserve case; full ALL-CAPS pass is reserved for Auto Format).
   if (b.text) {
-    b.text = balanceLines(b.text.replace(/\s+/g, " ").trim(), b.font, b.size, b.weight || 400, b.italic === "italic");
+    const dropShape = (b.shape || "oval").toLowerCase();
+    const dropEllipse = dropShape === "oval" || dropShape === "ellipse" || dropShape === "thought" || dropShape === "whisper" || dropShape === "round" || dropShape === "radio";
+    const cleaned = b.text.replace(/\s+/g, " ").trim();
+    b.text = dropEllipse
+      ? balanceLinesLens(cleaned, b.font, b.size, b.weight || 400, b.italic === "italic")
+      : balanceLinesRect(cleaned, b.font, b.size, b.weight || 400, b.italic === "italic");
   }
   fitBalloonToText(b);
   state.balloons.push(b);
