@@ -2865,6 +2865,31 @@ $("btn-text-fit-debug").addEventListener("click", () => {
     : "Text Fit Debug OFF");
 });
 
+// ============== FIT TESTS (regression gallery) ==============
+$("btn-fit-tests").addEventListener("click", async () => {
+  const results = runTextFitRegression();
+  const passed = results.filter(r => r.fits).length;
+  const allPass = passed === results.length;
+  const lines = results.map(r => {
+    const status = r.fits ? "PASS" : "FAIL";
+    const detail = r.fits
+      ? `${r.lines.length}L @ ${r.fontSize}px (w ${r.widest}/${r.maxWidthAllowed})`
+      : `overflow w+${r.widthOverflow} h+${r.heightOverflow} @ ${r.fontSize}px`;
+    return `[${status}] ${r.name} — ${detail}`;
+  });
+  const summary = `${passed}/${results.length} cases within bounds\n\n` + lines.join("\n");
+  // Also log full detail to the console for CI-style inspection.
+  console.table(results.map(r => ({
+    case: r.name, fits: r.fits, lines: r.lines.length, fontSize: r.fontSize,
+    widest: r.widest, maxW: r.maxWidthAllowed, blockH: r.blockH, safeH: r.safeH,
+    wOver: r.widthOverflow, hOver: r.heightOverflow,
+  })));
+  toast(allPass ? `Fit Tests: all ${results.length} passed` : `Fit Tests: ${results.length - passed} FAILED`);
+  await appAlert(summary, allPass ? "Fit Tests — all passed ✓" : "Fit Tests — failures detected");
+});
+
+
+
 
 
 // ============== SIDE-BY-SIDE SCRIPT VIEWER ==============
