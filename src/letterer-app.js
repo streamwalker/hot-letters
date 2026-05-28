@@ -1492,11 +1492,21 @@ function syncInspector() {
   $("i-tail-on").checked = !!b.tail;
   $("i-tail-w").value = b.tailW;
   $("i-tail-style").value = b.tailStyle;
+  $("i-organic").checked = !!b.organic;
+  $("i-dashed").checked = b.outline === "dashed";
+  const insetPct = (typeof b.edgeInset === "number") ? Math.round(b.edgeInset * 100) : -1;
+  $("i-inset").value = String(insetPct);
+  $("i-inset-val").textContent = insetPct < 0 ? "auto" : (insetPct + "%");
   // highlight active preset
   document.querySelectorAll(".style-preset").forEach(el => el.classList.remove("active"));
   // Toggle Split / Unlink visibility based on whether this balloon is part of a linked pair
   $("btn-split-balloon").style.display = b.linkedTo ? "none" : "block";
   $("btn-unlink-balloon").style.display = b.linkedTo ? "block" : "none";
+  $("btn-connect-balloon").style.display = b.connectedTo ? "none" : "block";
+  $("btn-disconnect-balloon").style.display = b.connectedTo ? "block" : "none";
+  $("btn-connect-balloon").textContent = state.connectMode
+    ? "Click another balloon… (Esc to cancel)"
+    : "Connect to Another Balloon…";
 }
 
 function toHex(c) {
