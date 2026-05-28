@@ -1076,11 +1076,17 @@ function render() {
       || shapeName === "whisper" || shapeName === "round" || shapeName === "radio"
       || shapeName === "cloud" || shapeName === "burst";
     const edgeInsetPv = getEffectiveInset(b);
+    // Use the SAME layout solver the export uses so the preview matches the
+    // rasterized result exactly: the font auto-shrinks to fit and the text box
+    // tracks the oval's curve-based safe area (instead of a tiny inscribed
+    // rectangle, which left huge whitespace and clipped text when shrunk).
+    const layoutPv = computeBalloonTextLayout(b);
     let w, h;
     if (isOvalShape) {
-      // Largest rectangle inscribed in the ellipse, then apply the edge inset.
-      w = Math.max(8, (b.rx * 2 / Math.SQRT2) * (1 - edgeInsetPv));
-      h = Math.max(8, (b.ry * 2 / Math.SQRT2) * (1 - edgeInsetPv));
+      // Width tracks the chord available at the computed line count (so text
+      // fills the oval), height is the full vertical safe area.
+      w = Math.max(8, layoutPv.maxWidthAllowed);
+      h = Math.max(8, b.ry * 2 * (1 - edgeInsetPv));
     } else {
       const padX = 14, padY = 8;
       w = Math.max(8, b.rx * 2 - padX * 2);
@@ -1100,7 +1106,7 @@ function render() {
     div.style.alignItems = "center";
     div.style.justifyContent = "center";
     div.style.fontFamily = b.font;
-    div.style.fontSize = b.size + "px";
+    div.style.fontSize = layoutPv.fontSize + "px";
     div.style.fontWeight = b.weight;
     div.style.fontStyle = b.italic;
     div.style.letterSpacing = (b.tracking || 0) + "px";
