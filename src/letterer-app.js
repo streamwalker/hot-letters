@@ -1668,6 +1668,13 @@ function bindInspector() {
     syncInspector();
     toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");
   });
+  $("btn-connect-toolbar").addEventListener("click", () => {
+    const b = getSelected();
+    if (!b) { toast("Select a balloon first"); return; }
+    state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
+    syncInspector();
+    toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");
+  });
   $("btn-disconnect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     pushUndo();
