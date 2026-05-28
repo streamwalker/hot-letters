@@ -1568,6 +1568,8 @@ function syncInspector() {
   if (!b) {
     inspector.style.display = "none";
     inspectorEmpty.style.display = "block";
+    $("btn-connect-toolbar").disabled = true;
+    $("btn-connect-toolbar").textContent = "Connect Balloons";
     return;
   }
   inspector.style.display = "block";
@@ -1601,6 +1603,10 @@ function syncInspector() {
   $("btn-connect-balloon").textContent = state.connectPickerSourceId
     ? "Click another balloon… (Esc to cancel)"
     : "Connect to Another Balloon…";
+  $("btn-connect-toolbar").disabled = false;
+  $("btn-connect-toolbar").textContent = state.connectPickerSourceId
+    ? "Click target balloon…"
+    : "Connect Balloons";
 }
 
 function toHex(c) {
