@@ -1568,6 +1568,8 @@ function syncInspector() {
   if (!b) {
     inspector.style.display = "none";
     inspectorEmpty.style.display = "block";
+    $("btn-connect-toolbar").disabled = true;
+    $("btn-connect-toolbar").textContent = "Connect Balloons";
     return;
   }
   inspector.style.display = "block";
@@ -1601,6 +1603,10 @@ function syncInspector() {
   $("btn-connect-balloon").textContent = state.connectPickerSourceId
     ? "Click another balloon… (Esc to cancel)"
     : "Connect to Another Balloon…";
+  $("btn-connect-toolbar").disabled = false;
+  $("btn-connect-toolbar").textContent = state.connectPickerSourceId
+    ? "Click target balloon…"
+    : "Connect Balloons";
 }
 
 function toHex(c) {
@@ -1658,6 +1664,13 @@ function bindInspector() {
   syncShapeInsetInputs();
   $("btn-connect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
+    state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
+    syncInspector();
+    toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");
+  });
+  $("btn-connect-toolbar").addEventListener("click", () => {
+    const b = getSelected();
+    if (!b) { toast("Select a balloon first"); return; }
     state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
     syncInspector();
     toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");

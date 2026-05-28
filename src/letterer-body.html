@@ -3,6 +3,7 @@
   <label class="btn" for="file-image">Load Page Image</label>
   <input type="file" id="file-image" accept="image/*">
   <button id="btn-add-balloon">+ Add Balloon</button>
+  <button id="btn-connect-toolbar" title="Select a balloon, then click another balloon to connect them with a narrow tube" disabled>Connect Balloons</button>
   <button id="btn-side-by-side" title="View script photo and comic page side by side">Script View</button>
   <button id="btn-reading-order" title="Show numbered reading order and trail (Klein-style)">Reading Order</button>
   <button id="btn-text-fit-debug" title="Overlay measured line boxes and the computed oval safe area in the exported image to verify wrapping/shrinking">Text Fit Debug</button>
@@ -123,6 +124,15 @@ KRAKKK"></textarea>
         <button id="btn-smart-place" style="background:var(--accent-2);color:#fff;width:100%;font-weight:700;font-size:13px;padding:9px;border:0;border-radius:5px;cursor:pointer;">Smart Place This Balloon</button>
         <button id="btn-smart-place-all" style="background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;margin-top:6px;font-size:11px;padding:6px;border-radius:4px;cursor:pointer;">Smart Place All Balloons</button>
         <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">AI analyzes the comic art and repositions balloons over negative space — sky, plain backgrounds, panel gaps — avoiding faces, bodies, hands, power signatures, and effects. Requires an Anthropic API key and a loaded page image.</p>
+      </div>
+
+      <div class="section">
+        <h3>Connect / Split</h3>
+        <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
+        <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
+        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;">Split into Joined Pair</button>
+        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Connect</strong> links two balloons with a narrow tube. <strong>Split</strong> creates a joined double bubble.</p>
       </div>
 
       <div class="section">
@@ -268,17 +278,6 @@ KRAKKK"></textarea>
           </div>
         </div>
       </div>
-
-
-      <div class="section">
-        <h3>Connect / Split</h3>
-        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;">Split into Joined Pair</button>
-        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
-        <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
-        <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
-        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Split</strong> creates a "double bubble" — two balloons whose bodies merge into one silhouette (a Join).<br><strong>Connect</strong> links two balloons with a narrow tube — the Balloon Connector from Fig. 5.1.</p>
-      </div>
-
       <div class="section">
         <button class="danger" id="i-delete">Delete Balloon</button>
       </div>
