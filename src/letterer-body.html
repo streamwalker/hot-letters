@@ -209,6 +209,15 @@ KRAKKK"></textarea>
       </div>
 
       <div class="section">
+        <h3>Connect / Split</h3>
+        <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
+        <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
+        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;">Split into Joined Pair</button>
+        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
+        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Connect</strong> links two balloons with a narrow tube — the Balloon Connector from Fig. 5.1.<br><strong>Split</strong> creates a "double bubble" — two balloons whose bodies merge into one silhouette (a Join).</p>
+      </div>
+
+      <div class="section">
         <h3>Tail</h3>
         <div class="field-row">
           <input type="checkbox" id="i-tail-on">
@@ -268,17 +277,6 @@ KRAKKK"></textarea>
           </div>
         </div>
       </div>
-
-
-      <div class="section">
-        <h3>Connect / Split</h3>
-        <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;">Split into Joined Pair</button>
-        <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
-        <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
-        <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
-        <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Split</strong> creates a "double bubble" — two balloons whose bodies merge into one silhouette (a Join).<br><strong>Connect</strong> links two balloons with a narrow tube — the Balloon Connector from Fig. 5.1.</p>
-      </div>
-
       <div class="section">
         <button class="danger" id="i-delete">Delete Balloon</button>
       </div>
