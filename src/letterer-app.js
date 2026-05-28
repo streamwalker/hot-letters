@@ -1017,10 +1017,32 @@ function render() {
 
     // Text via foreignObject (per-balloon, including each lobe of a linked pair)
     const fo = document.createElementNS(SVG_NS, "foreignObject");
-    const padX = 14, padY = 8;
-    const w = b.rx * 2 - padX * 2, h = b.ry * 2 - padY * 2;
-    fo.setAttribute("x", b.cx - b.rx + padX);
-    fo.setAttribute("y", b.cy - b.ry + padY);
+    // Mirror the export's oval-curve fitting so on-canvas text can't overflow the
+    // outline. For ovals the editable box is the rectangle inscribed in the
+    // ellipse (half-axes rx/√2, ry/√2), shrunk by the same edge inset the export
+    // uses. For rect-like shapes a simple padded box is enough.
+    const shapeName = (b.shape || "oval").toLowerCase();
+    const isOvalShape = shapeName === "oval" || shapeName === "ellipse" || shapeName === "thought"
+      || shapeName === "whisper" || shapeName === "round" || shapeName === "radio"
+      || shapeName === "cloud" || shapeName === "burst";
+    const shapeDefaultInset = (shapeName === "burst") ? 0.22
+                            : (shapeName === "cloud") ? 0.16
+                            : isOvalShape ? 0.10 : 0.08;
+    const edgeInsetPv = (typeof b.edgeInset === "number")
+      ? Math.max(0, Math.min(0.4, b.edgeInset))
+      : shapeDefaultInset;
+    let w, h;
+    if (isOvalShape) {
+      // Largest rectangle inscribed in the ellipse, then apply the edge inset.
+      w = Math.max(8, (b.rx * 2 / Math.SQRT2) * (1 - edgeInsetPv));
+      h = Math.max(8, (b.ry * 2 / Math.SQRT2) * (1 - edgeInsetPv));
+    } else {
+      const padX = 14, padY = 8;
+      w = Math.max(8, b.rx * 2 - padX * 2);
+      h = Math.max(8, b.ry * 2 - padY * 2);
+    }
+    fo.setAttribute("x", b.cx - w / 2);
+    fo.setAttribute("y", b.cy - h / 2);
     fo.setAttribute("width", w);
     fo.setAttribute("height", h);
     const div = document.createElement("div");
