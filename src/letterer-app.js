@@ -1504,7 +1504,7 @@ function syncInspector() {
   $("btn-unlink-balloon").style.display = b.linkedTo ? "block" : "none";
   $("btn-connect-balloon").style.display = b.connectedTo ? "none" : "block";
   $("btn-disconnect-balloon").style.display = b.connectedTo ? "block" : "none";
-  $("btn-connect-balloon").textContent = state.connectMode
+  $("btn-connect-balloon").textContent = state.connectPickerSourceId
     ? "Click another balloon… (Esc to cancel)"
     : "Connect to Another Balloon…";
 }
