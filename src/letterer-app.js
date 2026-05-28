@@ -1840,12 +1840,15 @@ function balanceLinesLens(text, fontFamily, fontSize, fontWeight, italic) {
     // shorter overall block; narrower budget → taller, more rounded.
     const meanTarget = targets.reduce((a, b) => a + b, 0) / N;
     const idealBudget = fullW / (N * meanTarget);
-    for (const k of [0.85, 1.0, 1.15, 1.3]) {
+    for (const k of [0.75, 0.9, 1.0, 1.1, 1.25]) {
       const budgetW = idealBudget * k;
       const lines = fitToTargets(wordsRest, targets, budgetW, ctx, sentenceBreakIdxRest);
       if (!lines) continue;
       const widths = lines.map(l => ctx.measureText(l).width);
       const maxW = Math.max(...widths);
+      // Cap absolute line width: no line may exceed ~55% of the all-words width.
+      // This forces taller stacks for long text instead of a few flat lines.
+      if (maxW > fullW * 0.55 && N < maxN) continue;
       // Score: sum of squared deviations from lens shape (normalized to maxW).
       let score = 0;
       for (let i = 0; i < N; i++) {
@@ -1853,11 +1856,16 @@ function balanceLinesLens(text, fontFamily, fontSize, fontWeight, italic) {
         const dev = (widths[i] - want) / maxW;
         score += dev * dev;
       }
+      // Pull toward a tall lens stack (block aspect ≈ 1.75) instead of flat lines.
+      const aspect = maxW / (N * fontSize * 1.18);
+      score += Math.pow(aspect - 1.75, 2) * 0.6;
       // Penalize first/last being wider than their neighbors (anti-oval).
       if (N >= 3) {
-        if (widths[0] > widths[1] * 0.98) score += 0.4;
-        if (widths[N - 1] > widths[N - 2] * 0.98) score += 0.4;
+        if (widths[0] >= widths[1] * 0.9) score += 0.9;
+        if (widths[N - 1] >= widths[N - 2] * 0.9) score += 0.9;
       }
+      // Penalize overflow (leftover words crammed into the last line).
+      if (lines.overflow) score += 1.0;
       // Bonus when line breaks align with sentence boundaries.
       let cum = 0;
       let bonus = 0;
