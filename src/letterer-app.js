@@ -1554,10 +1554,9 @@ function bindInspector() {
   });
   $("btn-connect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
-    state.connectMode = !state.connectMode;
-    state.connectFromId = state.connectMode ? b.id : null;
+    state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
     syncInspector();
-    toast(state.connectMode ? "Click another balloon to connect" : "Connect cancelled");
+    toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");
   });
   $("btn-disconnect-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
