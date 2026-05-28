@@ -202,6 +202,7 @@ function applySnapshot(snap) {
   if (data.shapeInsets && typeof data.shapeInsets === "object") {
     state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
   }
+  syncShapeInsetInputs();
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
