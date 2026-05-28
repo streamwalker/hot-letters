@@ -2662,7 +2662,7 @@ $("btn-export-png").addEventListener("click", async () => {
     svgClone.setAttribute("height", h);
     // CRITICAL: foreignObject taints the canvas in Safari/Firefox ("The operation is insecure").
     // Convert each foreignObject to native SVG <text> with wrapped tspans for export.
-    foreignObjectsToSvgText(svgClone, state.balloons);
+    foreignObjectsToSvgText(svgClone, state.balloons, state.debugTextFit);
     // Inline used Google Fonts so the SVG has no external network deps.
     if (inlinedCss) {
       const defs = document.createElementNS(SVG_NS, "defs");
