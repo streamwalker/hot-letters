@@ -171,6 +171,7 @@ function snapshotState() {
     nextId: state.nextId,
     parsedLines: state.parsedLines,
     defaultTailW: state.defaultTailW,
+    shapeInsets: state.shapeInsets,
   });
 }
 function pushUndo() {
