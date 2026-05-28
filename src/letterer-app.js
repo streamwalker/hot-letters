@@ -16,26 +16,29 @@ const state = {
   selectedId: null,
   nextId: 1,
   parsedLines: [], // {id, who, mod, text, placed}
+  // Blambot rule #006: a page should have a single consistent tail width tied to the dialogue
+  // font's letter-"O" opening. When set, new balloons inherit this instead of the preset's tailW.
+  defaultTailW: null,
+  // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
+  connectPickerSourceId: null,
 };
 
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
 // in the inspector.
+// `outline: "dashed"` triggers a dashed stroke on the body (whisper / radio conventions).
 const PRESETS = {
-  speech:     { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "normal", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  thought:    { shape: "cloud",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "bubbles", tailW: 12 },
-  shout:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2.5, font: "'Bangers', Impact, sans-serif", size: 22, weight: 700, italic: "normal", tracking: 0.5, textColor: "#000000", tail: true, tailStyle: "point", tailW: 16 },
-  whisper:    { shape: "ellipse", fill: "#ffffff", stroke: "#666666", strokeW: 1.5, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 13, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 10 },
-  // Blambot WEAK: dialogue diminished — even smaller, more washed-out than whisper. Used for
-  // dying or barely-conscious characters.
-  weak:       { shape: "ellipse", fill: "#ffffff", stroke: "#999999", strokeW: 1, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 11, weight: 400, italic: "italic", tracking: 0, textColor: "#666666", tail: true, tailStyle: "point", tailW: 8 },
-  // Blambot SINGING: handwritten/script font, italic, surrounded by music notes when applied.
-  singing:    { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Kalam', cursive", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  // Blambot TRANSLATED (foreign-language): italic with a tinted balloon background to signal that
-  // the dialogue is being rendered in English from another language.
-  translated: { shape: "ellipse", fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14 },
-  caption:    { shape: "rect",    fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 700, italic: "normal", tracking: 0, textColor: "#000000", tail: false, tailStyle: "point", tailW: 12 },
-  sfx:        { shape: "ellipse", fill: "transparent", stroke: "transparent", strokeW: 0, font: "'Bangers', Impact, sans-serif", size: 48, weight: 700, italic: "normal", tracking: 1, textColor: "#ffd400", tail: false, tailStyle: "point", tailW: 12 },
+  speech:     { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "normal", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  thought:    { shape: "cloud",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "bubbles", tailW: 12, outline: "solid", organic: false },
+  shout:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2.5, font: "'Bangers', Impact, sans-serif", size: 22, weight: 700, italic: "normal", tracking: 0.5, textColor: "#000000", tail: true, tailStyle: "point", tailW: 16, outline: "solid", organic: false },
+  whisper:    { shape: "ellipse", fill: "#ffffff", stroke: "#666666", strokeW: 1.5, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 13, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 10, outline: "dashed", organic: false },
+  weak:       { shape: "ellipse", fill: "#ffffff", stroke: "#999999", strokeW: 1, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 11, weight: 400, italic: "italic", tracking: 0, textColor: "#666666", tail: true, tailStyle: "point", tailW: 8, outline: "solid", organic: false },
+  singing:    { shape: "ellipse", fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Kalam', cursive", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  translated: { shape: "ellipse", fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 16, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 14, outline: "solid", organic: false },
+  // Blambot RADIO/TRANSMISSION: jagged burst silhouette + dashed outline, italic.
+  radio:      { shape: "burst",   fill: "#ffffff", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 400, italic: "italic", tracking: 0, textColor: "#000000", tail: true, tailStyle: "point", tailW: 12, outline: "dashed", organic: false },
+  caption:    { shape: "rect",    fill: "#fff7c2", stroke: "#000000", strokeW: 2, font: "'Comic Neue', Comic Sans MS, sans-serif", size: 14, weight: 700, italic: "normal", tracking: 0, textColor: "#000000", tail: false, tailStyle: "point", tailW: 12, outline: "solid", organic: false },
+  sfx:        { shape: "ellipse", fill: "transparent", stroke: "transparent", strokeW: 0, font: "'Bangers', Impact, sans-serif", size: 48, weight: 700, italic: "normal", tracking: 1, textColor: "#ffd400", tail: false, tailStyle: "point", tailW: 12, outline: "solid", organic: false },
 };
 
 function uid() { return "b" + (state.nextId++); }
@@ -48,10 +51,11 @@ function cloneBalloon(text, modifier) {
   else if (modifier === "WEAK") preset = "weak";
   else if (modifier === "SINGING" || modifier === "SING") preset = "singing";
   else if (modifier === "TRANSLATED" || modifier === "FOREIGN") preset = "translated";
+  else if (modifier === "RADIO" || modifier === "TRANSMISSION") preset = "radio";
   else if (modifier === "CAPTION") preset = "caption";
   else if (modifier === "SFX") preset = "sfx";
   const p = PRESETS[preset];
-  return {
+  const b = {
     id: uid(),
     text: text || "Hello!",
     cx: state.imageW / 2,
@@ -59,8 +63,12 @@ function cloneBalloon(text, modifier) {
     rx: 100, ry: 50,
     tailX: state.imageW / 2,
     tailY: state.imageH / 2,
+    connectedTo: null,
     ...JSON.parse(JSON.stringify(p)),
   };
+  // Page-level tail-width default takes priority over preset (Blambot #006 consistency rule).
+  if (typeof state.defaultTailW === "number" && state.defaultTailW > 0) b.tailW = state.defaultTailW;
+  return b;
 }
 
 // ============== DOM REFS ==============
@@ -138,6 +146,7 @@ function snapshotState() {
     balloons: state.balloons,
     nextId: state.nextId,
     parsedLines: state.parsedLines,
+    defaultTailW: state.defaultTailW,
   });
 }
 function pushUndo() {
@@ -150,6 +159,7 @@ function applySnapshot(snap) {
   state.balloons = data.balloons || [];
   state.nextId = data.nextId || 1;
   state.parsedLines = data.parsedLines || [];
+  state.defaultTailW = (typeof data.defaultTailW === "number") ? data.defaultTailW : null;
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
@@ -801,6 +811,17 @@ function renderTailFor(b, parent) {
       c.setAttribute("fill", b.fill); c.setAttribute("stroke", b.stroke); c.setAttribute("stroke-width", b.strokeW);
       parent.appendChild(c);
     }
+  } else if (b.tailStyle === "offpanel") {
+    // Long, curving tail that gently sweeps out toward an unseen speaker (Fig. 5.1 "Off-Panel Tail").
+    const tail = makeOffPanelTailPath(b);
+    const tp = document.createElementNS(SVG_NS, "path");
+    tp.setAttribute("d", tail);
+    tp.setAttribute("fill", b.fill);
+    tp.setAttribute("stroke", b.stroke);
+    tp.setAttribute("stroke-width", b.strokeW);
+    tp.setAttribute("stroke-linejoin", "round");
+    tp.setAttribute("stroke-linecap", "round");
+    parent.appendChild(tp);
   } else {
     const tail = makeTailPath(b);
     const tp = document.createElementNS(SVG_NS, "path");
@@ -877,6 +898,31 @@ function render() {
     }
   }
 
+  // ---- 1.5 pass: render connector tubes (Blambot "Balloon Connector" — Fig. 5.1) ----
+  // Each balloon may set connectedTo: <otherId>. We draw one tube per pair, behind the bodies,
+  // then the body fills/strokes drawn later cover the tube ends so the seam is invisible.
+  const renderedConnectors = new Set();
+  for (const b of state.balloons) {
+    if (b.connectedTo && !renderedConnectors.has(b.id)) {
+      const partner = state.balloons.find(x => x.id === b.connectedTo);
+      if (!partner) continue;
+      const connKey = [b.id, partner.id].sort().join("-");
+      if (renderedConnectors.has(connKey)) continue;
+      renderedConnectors.add(connKey);
+      const tube = makeConnectorTubePath(b, partner);
+      if (tube) {
+        const fill = document.createElementNS(SVG_NS, "path");
+        fill.setAttribute("d", tube);
+        fill.setAttribute("fill", b.fill);
+        fill.setAttribute("stroke", b.stroke);
+        fill.setAttribute("stroke-width", b.strokeW);
+        fill.setAttribute("stroke-linejoin", "round");
+        overlay.appendChild(fill);
+      }
+    }
+  }
+
+
   // ---- Second pass: per-balloon groups (tail + body for unlinked, hit-area + text for all) ----
   for (const b of state.balloons) {
     const g = document.createElementNS(SVG_NS, "g");
@@ -888,7 +934,7 @@ function render() {
       //   (b) cloud/burst/rect + point tail → mask the body's stroke inside the tail polygon so the
       //       internal seam where the tail attaches is hidden, while the body's perimeter remains visible
       //   (c) anything with bubbles tail or no tail → original separate rendering (no seam to hide)
-      if (b.tail && b.tailStyle === "point" && b.shape === "ellipse") {
+      if (b.tail && b.tailStyle === "point" && b.shape === "ellipse" && b.outline !== "dashed" && !b.organic) {
         const path = document.createElementNS(SVG_NS, "path");
         path.setAttribute("d", makeUnifiedEllipsePath(b));
         path.setAttribute("fill", b.fill);
@@ -1017,36 +1063,89 @@ function render() {
 }
 
 function makeBodyShape(b) {
+  let el;
   if (b.shape === "rect") {
-    const r = document.createElementNS(SVG_NS, "rect");
-    r.setAttribute("x", b.cx - b.rx);
-    r.setAttribute("y", b.cy - b.ry);
-    r.setAttribute("width", b.rx * 2);
-    r.setAttribute("height", b.ry * 2);
-    r.setAttribute("rx", Math.min(b.rx, b.ry) * 0.18);
-    r.setAttribute("ry", Math.min(b.rx, b.ry) * 0.18);
-    r.setAttribute("fill", b.fill); r.setAttribute("stroke", b.stroke); r.setAttribute("stroke-width", b.strokeW);
-    return r;
+    el = document.createElementNS(SVG_NS, "rect");
+    el.setAttribute("x", b.cx - b.rx);
+    el.setAttribute("y", b.cy - b.ry);
+    el.setAttribute("width", b.rx * 2);
+    el.setAttribute("height", b.ry * 2);
+    el.setAttribute("rx", Math.min(b.rx, b.ry) * 0.18);
+    el.setAttribute("ry", Math.min(b.rx, b.ry) * 0.18);
+    el.setAttribute("fill", b.fill); el.setAttribute("stroke", b.stroke); el.setAttribute("stroke-width", b.strokeW);
+  } else if (b.shape === "cloud") {
+    el = document.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", makeCloudPath(b.cx, b.cy, b.rx, b.ry));
+    el.setAttribute("fill", b.fill); el.setAttribute("stroke", b.stroke); el.setAttribute("stroke-width", b.strokeW);
+  } else if (b.shape === "burst") {
+    el = document.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", makeBurstPath(b.cx, b.cy, b.rx, b.ry));
+    el.setAttribute("fill", b.fill); el.setAttribute("stroke", b.stroke); el.setAttribute("stroke-width", b.strokeW);
+    el.setAttribute("stroke-linejoin", "miter");
+  } else if (b.organic) {
+    // Blambot #019 "Organic vs Symmetrical Balloons": replace the perfect ellipse with a closed
+    // cubic-bezier ring whose anchors are perturbed deterministically per balloon id.
+    el = document.createElementNS(SVG_NS, "path");
+    el.setAttribute("d", makeOrganicEllipsePath(b));
+    el.setAttribute("fill", b.fill); el.setAttribute("stroke", b.stroke); el.setAttribute("stroke-width", b.strokeW);
+    el.setAttribute("stroke-linejoin", "round");
+  } else {
+    el = document.createElementNS(SVG_NS, "ellipse");
+    el.setAttribute("cx", b.cx); el.setAttribute("cy", b.cy);
+    el.setAttribute("rx", b.rx); el.setAttribute("ry", b.ry);
+    el.setAttribute("fill", b.fill); el.setAttribute("stroke", b.stroke); el.setAttribute("stroke-width", b.strokeW);
   }
-  if (b.shape === "cloud") {
-    const p = document.createElementNS(SVG_NS, "path");
-    p.setAttribute("d", makeCloudPath(b.cx, b.cy, b.rx, b.ry));
-    p.setAttribute("fill", b.fill); p.setAttribute("stroke", b.stroke); p.setAttribute("stroke-width", b.strokeW);
-    return p;
+  // Dashed outline (whisper / radio / sotto-voce). Length scales with stroke so it reads at any size.
+  if (b.outline === "dashed" && b.strokeW > 0) {
+    const dash = Math.max(4, b.strokeW * 3);
+    const gap = Math.max(3, b.strokeW * 2);
+    el.setAttribute("stroke-dasharray", `${dash} ${gap}`);
   }
-  if (b.shape === "burst") {
-    const p = document.createElementNS(SVG_NS, "path");
-    p.setAttribute("d", makeBurstPath(b.cx, b.cy, b.rx, b.ry));
-    p.setAttribute("fill", b.fill); p.setAttribute("stroke", b.stroke); p.setAttribute("stroke-width", b.strokeW);
-    p.setAttribute("stroke-linejoin", "miter");
-    return p;
+  return el;
+}
+
+// Deterministic pseudo-random in [-1,1] from a string id + integer index. Stable across renders so
+// "organic" balloons don't jitter while the user edits them.
+function seedRand(id, i) {
+  let h = 2166136261 >>> 0;
+  const s = id + "|" + i;
+  for (let k = 0; k < s.length; k++) {
+    h ^= s.charCodeAt(k);
+    h = Math.imul(h, 16777619);
   }
-  // ellipse
-  const e = document.createElementNS(SVG_NS, "ellipse");
-  e.setAttribute("cx", b.cx); e.setAttribute("cy", b.cy);
-  e.setAttribute("rx", b.rx); e.setAttribute("ry", b.ry);
-  e.setAttribute("fill", b.fill); e.setAttribute("stroke", b.stroke); e.setAttribute("stroke-width", b.strokeW);
-  return e;
+  return ((h & 0xffff) / 0xffff) * 2 - 1;
+}
+
+// Closed cubic-bezier ring around an ellipse with small per-anchor perturbations. 8 anchors gives
+// a smooth result; amplitude ~3% of rx so the irregularity stays "subtle" per Blambot's guidance.
+function makeOrganicEllipsePath(b) {
+  const N = 8;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const jr = 1 + seedRand(b.id, i) * 0.03;
+    pts.push({
+      x: b.cx + Math.cos(a) * b.rx * jr,
+      y: b.cy + Math.sin(a) * b.ry * jr,
+      a,
+    });
+  }
+  // Catmull-Rom → Bezier for a closed loop.
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const p0 = pts[(i - 1 + N) % N];
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % N];
+    const p3 = pts[(i + 2) % N];
+    if (i === 0) out.push(`M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)}`);
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    out.push(`C ${c1x.toFixed(2)} ${c1y.toFixed(2)} ${c2x.toFixed(2)} ${c2y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)}`);
+  }
+  out.push("Z");
+  return out.join(" ");
 }
 
 function makeCloudPath(cx, cy, rx, ry) {
@@ -1084,18 +1183,101 @@ function makeBurstPath(cx, cy, rx, ry) {
   return path.join(" ");
 }
 
+// Approximate edge point of a balloon's body along the ray from center toward (tx,ty).
+// Used by the connector tube to find where the tube should attach to each balloon.
+function balloonEdgePoint(b, tx, ty) {
+  const dx = tx - b.cx, dy = ty - b.cy;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  if (b.shape === "rect") {
+    // intersect ray with axis-aligned rect
+    const sx = ux !== 0 ? b.rx / Math.abs(ux) : Infinity;
+    const sy = uy !== 0 ? b.ry / Math.abs(uy) : Infinity;
+    const s = Math.min(sx, sy);
+    return { x: b.cx + ux * s, y: b.cy + uy * s };
+  }
+  // ellipse / cloud / burst — use parametric ellipse approximation along the ray angle
+  const ang = Math.atan2(uy, ux);
+  return ellipsePoint(b.cx, b.cy, b.rx, b.ry, ang);
+}
+
+// Build a tube path between two balloons that have been connected. Quadratic curves on both edges
+// with a slight perpendicular arc so the connector reads as an organic tube, not a hard rectangle.
+function makeConnectorTubePath(a, c) {
+  const dx = c.cx - a.cx, dy = c.cy - a.cy;
+  const len = Math.hypot(dx, dy) || 1;
+  if (len < a.rx + c.rx + 4) return null; // overlapping — skip; user can use Split instead
+  const ux = dx / len, uy = dy / len;
+  const nx = -uy, ny = ux; // perpendicular
+  const widthA = Math.max(4, a.connectorW || a.tailW || 12);
+  const widthC = Math.max(4, c.connectorW || c.tailW || 12);
+  const eA = balloonEdgePoint(a, c.cx, c.cy);
+  const eC = balloonEdgePoint(c, a.cx, a.cy);
+  // Four corner points of the tube (two on each balloon edge), offset perpendicular by half-width.
+  const a1 = { x: eA.x + nx * widthA / 2, y: eA.y + ny * widthA / 2 };
+  const a2 = { x: eA.x - nx * widthA / 2, y: eA.y - ny * widthA / 2 };
+  const c1 = { x: eC.x + nx * widthC / 2, y: eC.y + ny * widthC / 2 };
+  const c2 = { x: eC.x - nx * widthC / 2, y: eC.y - ny * widthC / 2 };
+  // Slight arch — control points pushed perpendicular by min(40, len*0.12)
+  const arch = Math.min(40, len * 0.12);
+  const mx = (eA.x + eC.x) / 2, my = (eA.y + eC.y) / 2;
+  const cp1 = { x: mx + nx * (widthA / 2 + arch), y: my + ny * (widthA / 2 + arch) };
+  const cp2 = { x: mx - nx * (widthC / 2 + arch), y: my - ny * (widthC / 2 + arch) };
+  return [
+    `M ${a1.x.toFixed(2)} ${a1.y.toFixed(2)}`,
+    `Q ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)} ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}`,
+    `L ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}`,
+    `Q ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)} ${a2.x.toFixed(2)} ${a2.y.toFixed(2)}`,
+    `Z`,
+  ].join(" ");
+}
+
 function makeTailPath(b) {
-  // triangle from balloon edge to tail tip
+  // Triangle from balloon edge to tail tip — with Blambot rule #006 "no needlepoint" guard:
+  // the tip retains a small but non-zero half-width so the two sides of the tail never collapse
+  // into a single hair-line in the printed art.
   const dx = b.tailX - b.cx, dy = b.tailY - b.cy;
   const dist = Math.hypot(dx, dy) || 1;
   const ang = Math.atan2(dy, dx);
-  // angle subtended at balloon center for tail width
   const halfArc = Math.min(0.5, b.tailW / Math.max(b.rx, 30));
   const a1 = ang - halfArc, a2 = ang + halfArc;
-  // anchors on ellipse perimeter
   const p1 = ellipsePoint(b.cx, b.cy, b.rx, b.ry, a1);
   const p2 = ellipsePoint(b.cx, b.cy, b.rx, b.ry, a2);
-  return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} L ${b.tailX.toFixed(2)} ${b.tailY.toFixed(2)} L ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
+  // Tip half-width: a minimum based on stroke so the two edges stay separated visibly.
+  const tipHalf = Math.max(0.8, (b.strokeW || 1) * 0.7);
+  const px = -Math.sin(ang) * tipHalf, py = Math.cos(ang) * tipHalf;
+  const t1 = { x: b.tailX + px, y: b.tailY + py };
+  const t2 = { x: b.tailX - px, y: b.tailY - py };
+  return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} ` +
+         `L ${t1.x.toFixed(2)} ${t1.y.toFixed(2)} ` +
+         `L ${t2.x.toFixed(2)} ${t2.y.toFixed(2)} ` +
+         `L ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
+}
+
+// Long, curving tail for an off-panel speaker (Fig. 5.1). Cubic bezier with one perpendicular
+// control point, so the tail sweeps gracefully out toward the unseen speaker.
+function makeOffPanelTailPath(b) {
+  const dx = b.tailX - b.cx, dy = b.tailY - b.cy;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ang = Math.atan2(dy, dx);
+  const halfArc = Math.min(0.4, b.tailW / Math.max(b.rx, 30));
+  const a1 = ang - halfArc, a2 = ang + halfArc;
+  const p1 = ellipsePoint(b.cx, b.cy, b.rx, b.ry, a1);
+  const p2 = ellipsePoint(b.cx, b.cy, b.rx, b.ry, a2);
+  const tipHalf = Math.max(1.2, (b.strokeW || 1) * 0.9);
+  const px = -Math.sin(ang) * tipHalf, py = Math.cos(ang) * tipHalf;
+  const t1 = { x: b.tailX + px, y: b.tailY + py };
+  const t2 = { x: b.tailX - px, y: b.tailY - py };
+  // Perpendicular sweep amount — proportional to tail length, capped so it stays graceful.
+  const sweep = Math.min(80, dist * 0.35);
+  const sx = -Math.sin(ang) * sweep, sy = Math.cos(ang) * sweep;
+  // Control points on each side push outward perpendicular at ~60% of the path.
+  const cp1 = { x: p1.x + (b.tailX - p1.x) * 0.6 + sx * 0.4, y: p1.y + (b.tailY - p1.y) * 0.6 + sy * 0.4 };
+  const cp2 = { x: p2.x + (b.tailX - p2.x) * 0.6 - sx * 0.4, y: p2.y + (b.tailY - p2.y) * 0.6 - sy * 0.4 };
+  return `M ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} ` +
+         `Q ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)} ${t1.x.toFixed(2)} ${t1.y.toFixed(2)} ` +
+         `L ${t2.x.toFixed(2)} ${t2.y.toFixed(2)} ` +
+         `Q ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)} ${p2.x.toFixed(2)} ${p2.y.toFixed(2)} Z`;
 }
 
 // Build a single SVG path that traces the union outline of an ellipse balloon and its point-style tail —
