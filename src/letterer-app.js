@@ -185,6 +185,9 @@ function applySnapshot(snap) {
   state.nextId = data.nextId || 1;
   state.parsedLines = data.parsedLines || [];
   state.defaultTailW = (typeof data.defaultTailW === "number") ? data.defaultTailW : null;
+  if (data.shapeInsets && typeof data.shapeInsets === "object") {
+    state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+  }
 }
 function undo() {
   if (!undoStack.length) { toast("Nothing to undo"); return; }
