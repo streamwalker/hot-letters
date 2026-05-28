@@ -21,7 +21,30 @@ const state = {
   defaultTailW: null,
   // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
   connectPickerSourceId: null,
+  // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
+  // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
+  shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
 };
+
+// Map a balloon shape name to one of the four inset categories.
+function shapeInsetCategory(shapeName) {
+  const s = (shapeName || "oval").toLowerCase();
+  if (s === "burst") return "burst";
+  if (s === "cloud") return "cloud";
+  if (s === "rect" || s === "box" || s === "caption" || s === "square") return "box";
+  return "oval";
+}
+
+// Resolve the effective text inset (0..0.4) for a balloon: explicit override wins,
+// otherwise the configurable per-shape default.
+function getEffectiveInset(b) {
+  if (b && typeof b.edgeInset === "number") {
+    return Math.max(0, Math.min(0.4, b.edgeInset));
+  }
+  const cat = shapeInsetCategory(b && b.shape);
+  const v = state.shapeInsets && state.shapeInsets[cat];
+  return (typeof v === "number") ? Math.max(0, Math.min(0.4, v)) : 0.1;
+}
 
 // Style presets corresponding to the canonical Blambot/industry modifier set. Each preset is the
 // professional default look for a balloon of that type; the user can override anything per-balloon
