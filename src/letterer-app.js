@@ -1545,6 +1545,40 @@ function bindInspector() {
     const b = getSelected(); if (!b) return;
     unlinkBalloons(b);
   });
+  $("i-organic").addEventListener("change", () => withSel(b => b.organic = $("i-organic").checked));
+  $("i-dashed").addEventListener("change", () => withSel(b => b.outline = $("i-dashed").checked ? "dashed" : "solid"));
+  $("i-inset").addEventListener("input", () => {
+    const v = +$("i-inset").value;
+    withSel(b => { b.edgeInset = (v < 0) ? null : (v / 100); });
+    $("i-inset-val").textContent = v < 0 ? "auto" : (v + "%");
+  });
+  $("btn-connect-balloon").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    state.connectMode = !state.connectMode;
+    state.connectFromId = state.connectMode ? b.id : null;
+    syncInspector();
+    toast(state.connectMode ? "Click another balloon to connect" : "Connect cancelled");
+  });
+  $("btn-disconnect-balloon").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    pushUndo();
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (partner && partner.connectedTo === b.id) partner.connectedTo = null;
+    b.connectedTo = null;
+    render(); syncInspector();
+  });
+  $("btn-match-tail-o").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    pushUndo();
+    // Measure rendered width of "O" in this balloon's font
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${b.italic === "italic" ? "italic " : ""}${b.weight || 400} ${b.size}px ${b.font}`;
+    const w = ctx.measureText("O").width;
+    state.defaultTailW = w;
+    state.balloons.forEach(x => { x.tailW = w; });
+    render(); syncInspector();
+    toast(`Tail width matched to "O" (${w.toFixed(1)}px)`);
+  });
   document.querySelectorAll(".style-preset").forEach(el => {
     el.addEventListener("click", () => {
       const b = getSelected(); if (!b) return;
