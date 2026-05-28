@@ -811,6 +811,17 @@ function renderTailFor(b, parent) {
       c.setAttribute("fill", b.fill); c.setAttribute("stroke", b.stroke); c.setAttribute("stroke-width", b.strokeW);
       parent.appendChild(c);
     }
+  } else if (b.tailStyle === "offpanel") {
+    // Long, curving tail that gently sweeps out toward an unseen speaker (Fig. 5.1 "Off-Panel Tail").
+    const tail = makeOffPanelTailPath(b);
+    const tp = document.createElementNS(SVG_NS, "path");
+    tp.setAttribute("d", tail);
+    tp.setAttribute("fill", b.fill);
+    tp.setAttribute("stroke", b.stroke);
+    tp.setAttribute("stroke-width", b.strokeW);
+    tp.setAttribute("stroke-linejoin", "round");
+    tp.setAttribute("stroke-linecap", "round");
+    parent.appendChild(tp);
   } else {
     const tail = makeTailPath(b);
     const tp = document.createElementNS(SVG_NS, "path");
