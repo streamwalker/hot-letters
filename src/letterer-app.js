@@ -2706,6 +2706,17 @@ $("btn-reading-order").addEventListener("click", () => {
   if (state.showTrail) toast(state.balloons.length ? `Reading order shown — ${state.balloons.length} balloon${state.balloons.length===1?"":"s"}` : "Reading order shown — drop balloons to see numbering");
 });
 
+// ============== TEXT FIT DEBUG TOGGLE ==============
+$("btn-text-fit-debug").addEventListener("click", () => {
+  state.debugTextFit = !state.debugTextFit;
+  $("btn-text-fit-debug").classList.toggle("active", state.debugTextFit);
+  toast(state.debugTextFit
+    ? "Text Fit Debug ON — exported PNG will show line boxes + safe area"
+    : "Text Fit Debug OFF");
+});
+
+
+
 // ============== SIDE-BY-SIDE SCRIPT VIEWER ==============
 state.sideBySide = false;
 state.scriptViewerIndex = 0;
