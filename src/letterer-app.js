@@ -2300,6 +2300,8 @@ $("file-load").addEventListener("change", (e) => {
       scriptPhotos = data.scriptPhotos || [];
       state.nextId = data.nextId || (state.balloons.length + 1);
       if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
+      if (data.shapeInsets && typeof data.shapeInsets === "object") state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+      syncShapeInsetInputs();
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
       renderChips();
