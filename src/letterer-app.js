@@ -898,6 +898,31 @@ function render() {
     }
   }
 
+  // ---- 1.5 pass: render connector tubes (Blambot "Balloon Connector" — Fig. 5.1) ----
+  // Each balloon may set connectedTo: <otherId>. We draw one tube per pair, behind the bodies,
+  // then the body fills/strokes drawn later cover the tube ends so the seam is invisible.
+  const renderedConnectors = new Set();
+  for (const b of state.balloons) {
+    if (b.connectedTo && !renderedConnectors.has(b.id)) {
+      const partner = state.balloons.find(x => x.id === b.connectedTo);
+      if (!partner) continue;
+      const connKey = [b.id, partner.id].sort().join("-");
+      if (renderedConnectors.has(connKey)) continue;
+      renderedConnectors.add(connKey);
+      const tube = makeConnectorTubePath(b, partner);
+      if (tube) {
+        const fill = document.createElementNS(SVG_NS, "path");
+        fill.setAttribute("d", tube);
+        fill.setAttribute("fill", b.fill);
+        fill.setAttribute("stroke", b.stroke);
+        fill.setAttribute("stroke-width", b.strokeW);
+        fill.setAttribute("stroke-linejoin", "round");
+        overlay.appendChild(fill);
+      }
+    }
+  }
+
+
   // ---- Second pass: per-balloon groups (tail + body for unlinked, hit-area + text for all) ----
   for (const b of state.balloons) {
     const g = document.createElementNS(SVG_NS, "g");
