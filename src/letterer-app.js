@@ -64,6 +64,7 @@ function cloneBalloon(text, modifier) {
     tailX: state.imageW / 2,
     tailY: state.imageH / 2,
     connectedTo: null,
+    edgeInset: null, // null = use shape default at export time
     ...JSON.parse(JSON.stringify(p)),
   };
   // Page-level tail-width default takes priority over preset (Blambot #006 consistency rule).
@@ -1414,6 +1415,26 @@ let drag = null;
 
 function onBalloonPointerDown(e, b) {
   e.stopPropagation();
+  // Connect-balloon picker: if a source is armed, treat this click as the target
+  if (state.connectPickerSourceId && state.connectPickerSourceId !== b.id) {
+    const src = state.balloons.find(x => x.id === state.connectPickerSourceId);
+    if (src) {
+      pushUndo();
+      // Clear any existing connectors on either side, then bind both ways
+      [src, b].forEach(x => {
+        if (x.connectedTo) {
+          const p = state.balloons.find(y => y.id === x.connectedTo);
+          if (p) p.connectedTo = null;
+        }
+      });
+      src.connectedTo = b.id;
+      b.connectedTo = src.id;
+    }
+    state.connectPickerSourceId = null;
+    selectBalloon(b.id);
+    toast("Balloons connected");
+    return;
+  }
   selectBalloon(b.id);
   const start = clientToImage(e.clientX, e.clientY);
   drag = { type: "move", b, ox: b.cx - start.x, oy: b.cy - start.y, otx: b.tailX - start.x, oty: b.tailY - start.y };
@@ -1492,11 +1513,21 @@ function syncInspector() {
   $("i-tail-on").checked = !!b.tail;
   $("i-tail-w").value = b.tailW;
   $("i-tail-style").value = b.tailStyle;
+  $("i-organic").checked = !!b.organic;
+  $("i-dashed").checked = b.outline === "dashed";
+  const insetPct = (typeof b.edgeInset === "number") ? Math.round(b.edgeInset * 100) : -1;
+  $("i-inset").value = String(insetPct);
+  $("i-inset-val").textContent = insetPct < 0 ? "auto" : (insetPct + "%");
   // highlight active preset
   document.querySelectorAll(".style-preset").forEach(el => el.classList.remove("active"));
   // Toggle Split / Unlink visibility based on whether this balloon is part of a linked pair
   $("btn-split-balloon").style.display = b.linkedTo ? "none" : "block";
   $("btn-unlink-balloon").style.display = b.linkedTo ? "block" : "none";
+  $("btn-connect-balloon").style.display = b.connectedTo ? "none" : "block";
+  $("btn-disconnect-balloon").style.display = b.connectedTo ? "block" : "none";
+  $("btn-connect-balloon").textContent = state.connectPickerSourceId
+    ? "Click another balloon… (Esc to cancel)"
+    : "Connect to Another Balloon…";
 }
 
 function toHex(c) {
@@ -1534,6 +1565,39 @@ function bindInspector() {
   $("btn-unlink-balloon").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     unlinkBalloons(b);
+  });
+  $("i-organic").addEventListener("change", () => withSel(b => b.organic = $("i-organic").checked));
+  $("i-dashed").addEventListener("change", () => withSel(b => b.outline = $("i-dashed").checked ? "dashed" : "solid"));
+  $("i-inset").addEventListener("input", () => {
+    const v = +$("i-inset").value;
+    withSel(b => { b.edgeInset = (v < 0) ? null : (v / 100); });
+    $("i-inset-val").textContent = v < 0 ? "auto" : (v + "%");
+  });
+  $("btn-connect-balloon").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    state.connectPickerSourceId = state.connectPickerSourceId ? null : b.id;
+    syncInspector();
+    toast(state.connectPickerSourceId ? "Click another balloon to connect" : "Connect cancelled");
+  });
+  $("btn-disconnect-balloon").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    pushUndo();
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (partner && partner.connectedTo === b.id) partner.connectedTo = null;
+    b.connectedTo = null;
+    render(); syncInspector();
+  });
+  $("btn-match-tail-o").addEventListener("click", () => {
+    const b = getSelected(); if (!b) return;
+    pushUndo();
+    // Measure rendered width of "O" in this balloon's font
+    const ctx = document.createElement("canvas").getContext("2d");
+    ctx.font = `${b.italic === "italic" ? "italic " : ""}${b.weight || 400} ${b.size}px ${b.font}`;
+    const w = ctx.measureText("O").width;
+    state.defaultTailW = w;
+    state.balloons.forEach(x => { x.tailW = w; });
+    render(); syncInspector();
+    toast(`Tail width matched to "O" (${w.toFixed(1)}px)`);
   });
   document.querySelectorAll(".style-preset").forEach(el => {
     el.addEventListener("click", () => {
@@ -2010,6 +2074,7 @@ $("btn-save").addEventListener("click", () => {
     parsedLines: state.parsedLines,
     scriptPhotos: scriptPhotos,
     nextId: state.nextId,
+    defaultTailW: state.defaultTailW,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
@@ -2037,6 +2102,7 @@ $("file-load").addEventListener("change", (e) => {
       state.parsedLines = data.parsedLines || [];
       scriptPhotos = data.scriptPhotos || [];
       state.nextId = data.nextId || (state.balloons.length + 1);
+      if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
       renderChips();
@@ -2201,10 +2267,15 @@ function foreignObjectsToSvgText(root, balloons) {
     const isOval = !balloon || balloon.shape === "ellipse" || balloon.shape === "cloud" || balloon.shape === "burst";
 
     // Inset from the balloon edge so text never touches the stroke. Burst/cloud have
-    // wavy outlines so they need more room than a clean ellipse.
-    const edgeInset = (balloon?.shape === "burst") ? 0.22
-                    : (balloon?.shape === "cloud") ? 0.16
-                    : isOval ? 0.10 : 0.08;
+    // wavy outlines so they need more room than a clean ellipse. A per-balloon
+    // `edgeInset` override (0..0.4) replaces the shape default — useful for
+    // fine-tuning tight layouts where the default crops or wastes space.
+    const shapeDefault = (balloon?.shape === "burst") ? 0.22
+                       : (balloon?.shape === "cloud") ? 0.16
+                       : isOval ? 0.10 : 0.08;
+    const edgeInset = (balloon && typeof balloon.edgeInset === "number")
+      ? Math.max(0, Math.min(0.4, balloon.edgeInset))
+      : shapeDefault;
 
     // Compute the maximum line width allowed when the block will be `numLines` tall.
     // For ovals, the narrowest line in the block sits closest to top/bottom; we size
@@ -2501,6 +2572,14 @@ window.addEventListener("keydown", (e) => {
   const tag = (document.activeElement && document.activeElement.tagName) || "";
   const isEditing = tag === "INPUT" || tag === "TEXTAREA" || (document.activeElement && document.activeElement.isContentEditable);
   const isMod = e.metaKey || e.ctrlKey;
+
+  // Esc cancels the connect-balloon picker
+  if (e.key === "Escape" && state.connectPickerSourceId) {
+    state.connectPickerSourceId = null;
+    syncInspector();
+    toast("Connect cancelled");
+    return;
+  }
 
   // Undo / Redo (do not fire while typing in an input/textarea/contenteditable — let the browser
   // handle native text undo there).
