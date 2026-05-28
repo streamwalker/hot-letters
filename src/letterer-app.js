@@ -1106,7 +1106,7 @@ function render() {
     div.style.alignItems = "center";
     div.style.justifyContent = "center";
     div.style.fontFamily = b.font;
-    div.style.fontSize = b.size + "px";
+    div.style.fontSize = layoutPv.fontSize + "px";
     div.style.fontWeight = b.weight;
     div.style.fontStyle = b.italic;
     div.style.letterSpacing = (b.tracking || 0) + "px";
