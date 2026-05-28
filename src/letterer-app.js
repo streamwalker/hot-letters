@@ -64,6 +64,7 @@ function cloneBalloon(text, modifier) {
     tailX: state.imageW / 2,
     tailY: state.imageH / 2,
     connectedTo: null,
+    edgeInset: null, // null = use shape default at export time
     ...JSON.parse(JSON.stringify(p)),
   };
   // Page-level tail-width default takes priority over preset (Blambot #006 consistency rule).
