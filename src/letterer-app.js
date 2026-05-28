@@ -2556,6 +2556,69 @@ function foreignObjectsToSvgText(root, balloons, debug) {
       textEl.appendChild(tspan);
     }
 
+    // Debug overlay: measured per-line boxes + the computed safe area. Drawn as a
+    // sibling group so it sits above the text and is easy to strip out.
+    if (debug) {
+      const dbg = document.createElementNS(SVG_NS, "g");
+      dbg.setAttribute("data-debug-textfit", "1");
+      mctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+
+      // Safe area: ellipse for ovals, rect for boxes.
+      if (isOval) {
+        const ell = document.createElementNS(SVG_NS, "ellipse");
+        ell.setAttribute("cx", String(cx));
+        ell.setAttribute("cy", String(cy));
+        ell.setAttribute("rx", String(rx * (1 - edgeInset)));
+        ell.setAttribute("ry", String(ry * (1 - edgeInset)));
+        ell.setAttribute("fill", "none");
+        ell.setAttribute("stroke", "#00b3ff");
+        ell.setAttribute("stroke-width", "1.5");
+        ell.setAttribute("stroke-dasharray", "6 4");
+        dbg.appendChild(ell);
+      } else {
+        const safeW = w - 2 * (w * edgeInset);
+        const safeRect = document.createElementNS(SVG_NS, "rect");
+        safeRect.setAttribute("x", String(cx - safeW / 2));
+        safeRect.setAttribute("y", String(cy - h / 2));
+        safeRect.setAttribute("width", String(safeW));
+        safeRect.setAttribute("height", String(h));
+        safeRect.setAttribute("fill", "none");
+        safeRect.setAttribute("stroke", "#00b3ff");
+        safeRect.setAttribute("stroke-width", "1.5");
+        safeRect.setAttribute("stroke-dasharray", "6 4");
+        dbg.appendChild(safeRect);
+      }
+
+      // Per-line measured boxes (width = measured text width, height = lineHeight).
+      for (let i = 0; i < lines.length; i++) {
+        const lw = mctx.measureText(lines[i]).width + (letterSpacing * Math.max(0, lines[i].length - 1));
+        const boxTop = (startY + i * lineHeight) - fontSize * 0.82;
+        const overflow = lw > widthAt(lines.length) + 0.5;
+        const rect = document.createElementNS(SVG_NS, "rect");
+        rect.setAttribute("x", String(cx - lw / 2));
+        rect.setAttribute("y", String(boxTop));
+        rect.setAttribute("width", String(Math.max(1, lw)));
+        rect.setAttribute("height", String(lineHeight));
+        rect.setAttribute("fill", overflow ? "rgba(255,0,0,0.12)" : "rgba(0,255,120,0.10)");
+        rect.setAttribute("stroke", overflow ? "#ff2d2d" : "#16c060");
+        rect.setAttribute("stroke-width", "1");
+        dbg.appendChild(rect);
+      }
+
+      // Label: final font size + line count.
+      const label = document.createElementNS(SVG_NS, "text");
+      label.setAttribute("x", String(cx));
+      label.setAttribute("y", String(cy - ry * (1 - edgeInset) - 4));
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("fill", "#00b3ff");
+      label.setAttribute("font-family", "monospace");
+      label.setAttribute("font-size", "11");
+      label.textContent = `${Math.round(fontSize)}px · ${lines.length}L`;
+      dbg.appendChild(label);
+
+      fo.parentNode.insertBefore(dbg, fo.nextSibling);
+    }
+
     fo.parentNode.replaceChild(textEl, fo);
   }
 }
