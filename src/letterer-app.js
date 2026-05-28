@@ -1682,14 +1682,16 @@ function fitBalloonToText(b) {
   const widest = Math.max(...lines.map(l => ctx.measureText(l || " ").width), 1);
   const lineH = b.size * 1.18;
   const totalH = Math.max(1, lines.length) * lineH;
-  // Padding chosen so the text does not crowd the balloon edge.
-  const padX = 26, padY = 18;
+  // Padding chosen so the text does not crowd the balloon edge. The lens-shape
+  // partitioner can push middle lines very near the chord, so add extra pad.
+  const padX = 32, padY = 20;
   b.rx = Math.max(40, widest / 2 + padX);
   b.ry = Math.max(28, totalH / 2 + padY);
 }
 
 // ============== AUTO FORMAT (PROFESSIONAL CONVENTIONS) ==============
-// Cleans up typography, capitalizes, and rebalances line breaks for a lens-shape oval.
+// Cleans up typography, capitalizes, and rebalances line breaks into a
+// lens / oval silhouette per Blambot pro-lettering conventions.
 function autoFormatBalloon(b) {
   let t = b.text || "";
 
@@ -1704,8 +1706,15 @@ function autoFormatBalloon(b) {
   // 2. ALL CAPS — the dominant comic-book convention.
   t = t.toUpperCase();
 
-  // 3. Balance line breaks for a lens-shaped oval.
-  t = balanceLines(t, b.font, b.size, b.weight || 400, b.italic === "italic");
+  // 3. Choose balancer by shape. Ellipse-family balloons get the lens
+  // profile; rect / cloud / burst keep a rectangular fit (min-max DP).
+  const shape = (b.shape || "oval").toLowerCase();
+  const isEllipse = shape === "oval" || shape === "ellipse" || shape === "thought" || shape === "whisper" || shape === "round" || shape === "radio";
+  if (isEllipse) {
+    t = balanceLinesLens(t, b.font, b.size, b.weight || 400, b.italic === "italic");
+  } else {
+    t = balanceLinesRect(t, b.font, b.size, b.weight || 400, b.italic === "italic");
+  }
 
   b.text = t;
 
@@ -1713,20 +1722,164 @@ function autoFormatBalloon(b) {
   fitBalloonToText(b);
 }
 
-// Partition words into N lines such that the maximum line width is minimized,
-// with a small bonus when the middle line is the widest (lens / oval shape).
-function balanceLines(text, fontFamily, fontSize, fontWeight, italic) {
+// Split text into sentence fragments, keeping terminal punctuation attached.
+// "CAPTAIN RHEA! THE RYUKEN WILL..." → ["CAPTAIN RHEA!", "THE RYUKEN WILL..."]
+function segmentSentences(text) {
+  const out = [];
+  const re = /[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const s = m[0].trim();
+    if (s) out.push(s);
+  }
+  return out.length ? out : [text];
+}
+
+// Lens-profile target widths: chord of an ellipse, normalized to [0,1] of the
+// widest middle line. For N=8 this is roughly [.33,.66,.87,.99,.99,.87,.66,.33].
+function lensTargetWidths(N) {
+  const out = [];
+  for (let i = 0; i < N; i++) {
+    const t = (2 * i + 1) / N - 1; // -1..1, evaluated at row midpoint
+    const v = Math.sqrt(Math.max(0, 1 - t * t));
+    // Lift the very ends slightly so a 2- or 3-word line still fits there.
+    out.push(Math.max(0.28, v));
+  }
+  return out;
+}
+
+// Greedy left-to-right fitter against a per-line target width budget. Returns
+// null if the words don't fit into exactly N lines under the given budget.
+function fitToTargets(words, targets, budgetW, ctx, sentenceBreakIdx) {
+  const N = targets.length;
+  const lines = [];
+  let i = 0;
+  const slackBase = 1.05;
+  const slackSentence = 1.18; // generous if breaking lands on a sentence boundary
+  for (let row = 0; row < N; row++) {
+    const isLast = row === N - 1;
+    const linesLeft = N - row;
+    const wordsLeft = words.length - i;
+    if (wordsLeft < linesLeft) return null; // not enough words to fill remaining lines
+    const target = budgetW * targets[row];
+    let cur = [words[i]]; i++;
+    while (i < words.length) {
+      // Reserve at least one word for each remaining line.
+      const remainingLines = N - row - 1;
+      if (words.length - i <= remainingLines) break;
+      const trial = cur.concat(words[i]);
+      const w = ctx.measureText(trial.join(" ")).width;
+      const atSentence = sentenceBreakIdx.has(i);
+      const slack = atSentence ? slackSentence : slackBase;
+      // On the last line we must take everything left.
+      if (isLast) { cur = trial; i++; continue; }
+      if (w <= target * slack) { cur = trial; i++; }
+      else break;
+    }
+    lines.push(cur.join(" "));
+  }
+  if (i < words.length) {
+    // Append leftover words to the last line.
+    lines[lines.length - 1] = lines[lines.length - 1] + " " + words.slice(i).join(" ");
+  }
+  return lines;
+}
+
+// Lens balancer: try multiple N values + budget widths, score by deviation
+// from the lens target shape + bonus for sentence-aligned breaks.
+function balanceLinesLens(text, fontFamily, fontSize, fontWeight, italic) {
+  const ctx = document.createElement("canvas").getContext("2d");
+  ctx.font = `${italic ? "italic " : ""}${fontWeight} ${fontSize}px ${fontFamily}`;
+
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= 2) return text;
+
+  // Build the set of word indices that begin a new sentence.
+  const sentences = segmentSentences(text);
+  const sentenceBreakIdx = new Set();
+  let acc = 0;
+  for (let s = 0; s < sentences.length - 1; s++) {
+    acc += sentences[s].split(/\s+/).filter(Boolean).length;
+    sentenceBreakIdx.add(acc);
+  }
+
+  // Force-isolate a very short opening sentence (e.g. "CAPTAIN RHEA!").
+  let forcedFirst = null;
+  let wordsRest = words;
+  let sentenceBreakIdxRest = sentenceBreakIdx;
+  if (sentences.length >= 2) {
+    const firstW = ctx.measureText(sentences[0]).width;
+    const firstChars = sentences[0].length;
+    const firstWords = sentences[0].split(/\s+/).filter(Boolean).length;
+    if (firstChars <= 16 && firstWords <= 3) {
+      forcedFirst = sentences[0];
+      wordsRest = words.slice(firstWords);
+      sentenceBreakIdxRest = new Set();
+      let acc2 = 0;
+      for (let s = 1; s < sentences.length - 1; s++) {
+        acc2 += sentences[s].split(/\s+/).filter(Boolean).length;
+        sentenceBreakIdxRest.add(acc2);
+      }
+    }
+  }
+
+  if (wordsRest.length === 0) return forcedFirst || text;
+
+  const fullW = ctx.measureText(wordsRest.join(" ")).width;
+
+  let bestLines = null;
+  let bestScore = Infinity;
+
+  const maxN = Math.min(10, Math.max(2, Math.ceil(wordsRest.length / 2)));
+  for (let N = 2; N <= maxN; N++) {
+    const targets = lensTargetWidths(N);
+    // Try a few budget widths (the "W" in the lens profile). Wider budget →
+    // shorter overall block; narrower budget → taller, more rounded.
+    const meanTarget = targets.reduce((a, b) => a + b, 0) / N;
+    const idealBudget = fullW / (N * meanTarget);
+    for (const k of [0.85, 1.0, 1.15, 1.3]) {
+      const budgetW = idealBudget * k;
+      const lines = fitToTargets(wordsRest, targets, budgetW, ctx, sentenceBreakIdxRest);
+      if (!lines) continue;
+      const widths = lines.map(l => ctx.measureText(l).width);
+      const maxW = Math.max(...widths);
+      // Score: sum of squared deviations from lens shape (normalized to maxW).
+      let score = 0;
+      for (let i = 0; i < N; i++) {
+        const want = maxW * targets[i];
+        const dev = (widths[i] - want) / maxW;
+        score += dev * dev;
+      }
+      // Penalize first/last being wider than their neighbors (anti-oval).
+      if (N >= 3) {
+        if (widths[0] > widths[1] * 0.98) score += 0.4;
+        if (widths[N - 1] > widths[N - 2] * 0.98) score += 0.4;
+      }
+      // Bonus when line breaks align with sentence boundaries.
+      let cum = 0;
+      let bonus = 0;
+      for (let i = 0; i < N - 1; i++) {
+        cum += lines[i].split(/\s+/).filter(Boolean).length;
+        if (sentenceBreakIdxRest.has(cum)) bonus += 0.15;
+      }
+      score -= bonus;
+      if (score < bestScore) { bestScore = score; bestLines = lines; }
+    }
+  }
+
+  const finalLines = bestLines || [wordsRest.join(" ")];
+  if (forcedFirst) finalLines.unshift(forcedFirst);
+  return finalLines.join("\n");
+}
+
+// Rectangular balancer (legacy DP) — used for rect / cloud / burst shapes.
+function balanceLinesRect(text, fontFamily, fontSize, fontWeight, italic) {
   const ctx = document.createElement("canvas").getContext("2d");
   ctx.font = `${italic ? "italic " : ""}${fontWeight} ${fontSize}px ${fontFamily}`;
 
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length <= 1) return text;
 
-  const measure = (slice) => ctx.measureText(slice.join(" ")).width;
-  const fullW = measure(words);
-
-  // Choose target line count so the resulting oval has aspect ratio ~1.7 (wider than tall).
-  // Each line is ~1.18 × fontSize tall. Solve: (fullW/N) / (N * 1.18 * fontSize) ≈ 1.7
   let bestPart = null;
   let bestScore = Infinity;
 
@@ -1737,19 +1890,7 @@ function balanceLines(text, fontFamily, fontSize, fontWeight, italic) {
     const maxW = Math.max(...widths);
     const totalH = N * fontSize * 1.18;
     const aspect = maxW / totalH;
-
-    // Score: distance from ideal aspect, plus penalties for wide first/last lines.
-    let score = Math.abs(aspect - 1.7);
-    if (N >= 3) {
-      const mid = Math.floor((N - 1) / 2);
-      const midW = widths[mid];
-      // Penalize if first/last is wider than the middle (un-oval).
-      if (widths[0] > midW * 0.96) score += 0.5;
-      if (widths[N - 1] > midW * 0.96) score += 0.5;
-    }
-    // Slight preference for fewer lines all else equal.
-    score += N * 0.05;
-
+    let score = Math.abs(aspect - 1.7) + N * 0.05;
     if (score < bestScore) { bestScore = score; bestPart = part; }
   }
 
