@@ -1599,6 +1599,12 @@ function onTailPointerDown(e, b) {
   selectBalloon(b.id);
   drag = { type: "tail", b };
 }
+function onConnectorHandleDown(e, a, c, mode) {
+  e.stopPropagation();
+  const g = connectorGeometry(a, c);
+  drag = { type: "connector", a, c, mode, startWidth: g.width, startCurve: g.curve };
+  overlay.setPointerCapture?.(e.pointerId);
+}
 
 window.addEventListener("pointermove", (e) => {
   if (!drag) return;
