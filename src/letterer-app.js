@@ -3345,6 +3345,21 @@ window.addEventListener("keydown", (e) => {
         toast("Connector removed");
         return;
       }
+      // R — quick-reconnect the selected balloon to the last connection target
+      if ((e.key === "r" || e.key === "R") && state.lastConnectTargetId) {
+        const target = state.balloons.find(x => x.id === state.lastConnectTargetId);
+        if (!target || target.id === b.id) {
+          toast("No previous target available");
+          return;
+        }
+        e.preventDefault();
+        if (connectBalloons(b, target)) {
+          state.connectPickerSourceId = null;
+          render(); syncInspector();
+          toast("Reconnected to last target");
+        }
+        return;
+      }
     }
   }
 
