@@ -1628,6 +1628,8 @@ function onBalloonPointerDown(e, b) {
       const { owner } = getConnectorOwner(src, b);
       const baseW = Math.round(Math.min(src.rx, b.rx) * 0.18);
       owner.connectorW = Math.max(8, Math.min(16, baseW));
+      // Default to seamless join — tube reads as one continuous shape with both balloons.
+      owner.connectorSeamless = true;
     }
     state.connectPickerSourceId = null;
     selectBalloon(b.id);
