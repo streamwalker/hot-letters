@@ -950,9 +950,12 @@ function render() {
   }
 
   // ---- 1.5 pass: render connector tubes (Blambot "Balloon Connector" — Fig. 5.1) ----
-  // Each balloon may set connectedTo: <otherId>. We draw one tube per pair, behind the bodies,
-  // then the body fills/strokes drawn later cover the tube ends so the seam is invisible.
+  // Each balloon may set connectedTo: <otherId>. Draw one tube per pair, behind the bodies.
+  // When `connectorSeamless` is on (default), draw only tube FILL here; a top-pass overdraw +
+  // side strokes are applied AFTER the bodies so the join reads as one continuous shape with
+  // no visible chord/seam line where the tube meets each balloon.
   const renderedConnectors = new Set();
+  const seamlessConnectors = []; // [{owner, geom}]
   for (const b of state.balloons) {
     if (b.connectedTo && !renderedConnectors.has(b.id)) {
       const partner = state.balloons.find(x => x.id === b.connectedTo);
@@ -961,15 +964,21 @@ function render() {
       if (renderedConnectors.has(connKey)) continue;
       renderedConnectors.add(connKey);
       const tube = makeConnectorTubePath(b, partner);
-      if (tube) {
-        const fill = document.createElementNS(SVG_NS, "path");
-        fill.setAttribute("d", tube);
-        fill.setAttribute("fill", b.fill);
-        fill.setAttribute("stroke", b.stroke);
-        fill.setAttribute("stroke-width", b.strokeW);
+      if (!tube) continue;
+      const { owner } = getConnectorOwner(b, partner);
+      const seamless = owner.connectorSeamless !== false; // default ON
+      const fill = document.createElementNS(SVG_NS, "path");
+      fill.setAttribute("d", tube);
+      fill.setAttribute("fill", owner.fill);
+      if (seamless) {
+        fill.setAttribute("stroke", "none");
+        seamlessConnectors.push({ owner, geom: connectorGeometry(b, partner), tubeD: tube });
+      } else {
+        fill.setAttribute("stroke", owner.stroke);
+        fill.setAttribute("stroke-width", owner.strokeW);
         fill.setAttribute("stroke-linejoin", "round");
-        overlay.appendChild(fill);
       }
+      overlay.appendChild(fill);
     }
   }
 
