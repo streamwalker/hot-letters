@@ -21,6 +21,9 @@ const state = {
   defaultTailW: null,
   // When non-null, the next canvas click on a balloon connects it to this balloon and exits the mode.
   connectPickerSourceId: null,
+  // Remembers the most recent connection target so the user can quickly reconnect another balloon
+  // to the same partner without re-picking it (keyboard "R").
+  lastConnectTargetId: null,
   // When true, the exported image overlays measured line boxes + the computed
   // oval/box safe area so wrapping and auto-shrink behaviour can be verified.
   debugTextFit: false,
