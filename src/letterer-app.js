@@ -1768,6 +1768,7 @@ function syncInspector() {
         $("i-conn-w-val").textContent = String(w);
         $("i-conn-curve").value = String(cv);
         $("i-conn-curve-val").textContent = String(cv);
+        $("i-conn-seamless").checked = owner.connectorSeamless !== false;
         shapeCtl.style.display = "block";
       } else {
         shapeCtl.style.display = "none";
