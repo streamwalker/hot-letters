@@ -1139,6 +1139,46 @@ function render() {
     }
   }
 
+  // ---- Seamless connector overdraw ----
+  // For each seamless connector pair, paint the tube polygon (fill only, no stroke) ON TOP of
+  // the balloons to hide the segment of each balloon's outline that crosses the tube opening.
+  // Then stroke only the two side curves of the tube (omitting the chord at each end), so the
+  // tube reads as continuous with each balloon's outline rather than a separate shape with a
+  // seam line. Mirrors how unclicking "Organic" removes the seam between tail and body.
+  for (const sc of seamlessConnectors) {
+    const o = sc.owner;
+    // 1) Overdraw fill — hides the body stroke that crosses the tube mouth on each side.
+    const cover = document.createElementNS(SVG_NS, "path");
+    cover.setAttribute("d", sc.tubeD);
+    cover.setAttribute("fill", o.fill);
+    cover.setAttribute("stroke", "none");
+    cover.setAttribute("pointer-events", "none");
+    overlay.appendChild(cover);
+    // 2) Stroke only the two curved sides of the tube — no chord across either balloon end.
+    if (o.strokeW > 0) {
+      const g = sc.geom;
+      const halfW = g.width / 2;
+      const a1 = { x: g.eOwner.x + g.nx * halfW, y: g.eOwner.y + g.ny * halfW };
+      const a2 = { x: g.eOwner.x - g.nx * halfW, y: g.eOwner.y - g.ny * halfW };
+      const c1 = { x: g.ePartner.x + g.nx * halfW, y: g.ePartner.y + g.ny * halfW };
+      const c2 = { x: g.ePartner.x - g.nx * halfW, y: g.ePartner.y - g.ny * halfW };
+      const cp1 = { x: g.midCenter.x + g.nx * halfW, y: g.midCenter.y + g.ny * halfW };
+      const cp2 = { x: g.midCenter.x - g.nx * halfW, y: g.midCenter.y - g.ny * halfW };
+      const sideA = `M ${a1.x.toFixed(2)} ${a1.y.toFixed(2)} Q ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)} ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}`;
+      const sideB = `M ${a2.x.toFixed(2)} ${a2.y.toFixed(2)} Q ${cp2.x.toFixed(2)} ${cp2.y.toFixed(2)} ${c2.x.toFixed(2)} ${c2.y.toFixed(2)}`;
+      for (const d of [sideA, sideB]) {
+        const s = document.createElementNS(SVG_NS, "path");
+        s.setAttribute("d", d);
+        s.setAttribute("fill", "none");
+        s.setAttribute("stroke", o.stroke);
+        s.setAttribute("stroke-width", o.strokeW);
+        s.setAttribute("stroke-linecap", "round");
+        s.setAttribute("pointer-events", "none");
+        overlay.appendChild(s);
+      }
+    }
+  }
+
   // Klein-style overlays (crossings always; trail/badges if toggled on) drawn last so they sit on top.
   renderReadingOrderOverlay();
 
