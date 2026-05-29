@@ -1808,6 +1808,36 @@ function bindInspector() {
     b.connectedTo = null;
     render(); syncInspector();
   });
+  // Connector shape controls
+  const connWithOwner = (fn) => {
+    const b = getSelected(); if (!b || !b.connectedTo) return;
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (!partner) return;
+    const { owner } = getConnectorOwner(b, partner);
+    pushUndo();
+    fn(owner, b, partner);
+    render(); syncInspector();
+  };
+  $("i-conn-w").addEventListener("input", () => {
+    const v = +$("i-conn-w").value;
+    $("i-conn-w-val").textContent = String(v);
+    connWithOwner(o => { o.connectorW = v; });
+  });
+  $("i-conn-curve").addEventListener("input", () => {
+    const v = +$("i-conn-curve").value;
+    $("i-conn-curve-val").textContent = String(v);
+    connWithOwner(o => { o.connectorCurve = v; });
+  });
+  $("btn-conn-straighten").addEventListener("click", () => {
+    connWithOwner(o => { o.connectorCurve = 0; });
+  });
+  $("btn-conn-flip").addEventListener("click", () => {
+    connWithOwner((o, b, partner) => {
+      const g = connectorGeometry(b, partner);
+      o.connectorAngleOwner = g.ownerAng + Math.PI;
+      o.connectorAnglePartner = g.partnerAng + Math.PI;
+    });
+  });
   $("btn-match-tail-o").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     pushUndo();
