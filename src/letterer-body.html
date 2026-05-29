@@ -139,6 +139,10 @@ KRAKKK"></textarea>
             <label>Curve — <span id="i-conn-curve-val">0</span></label>
             <input type="range" id="i-conn-curve" min="-200" max="200" step="1" value="0" style="width:100%;">
           </div>
+          <div class="field-row" style="margin-bottom:6px;">
+            <input type="checkbox" id="i-conn-seamless" checked>
+            <label for="i-conn-seamless" style="margin:0;" title="Hide the seam line where the tube meets each balloon, so the connector reads as one continuous shape">Seamless join (merge tube with balloons)</label>
+          </div>
           <div style="display:flex;gap:4px;">
             <button id="btn-conn-straighten" style="flex:1;background:var(--panel-2);color:var(--text);border:1px solid var(--border);padding:5px;border-radius:4px;cursor:pointer;font-size:11px;">Straighten</button>
             <button id="btn-conn-flip" style="flex:1;background:var(--panel-2);color:var(--text);border:1px solid var(--border);padding:5px;border-radius:4px;cursor:pointer;font-size:11px;" title="Flip attachment to the other side of each balloon">Flip Sides</button>
