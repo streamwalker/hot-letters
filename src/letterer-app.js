@@ -1179,6 +1179,29 @@ function render() {
     }
   }
 
+  // ---- Connect-mode highlights ----
+  // When the user has armed a balloon as the connect source, ring the source in a solid color
+  // and ring every other balloon with a pulsing dashed outline so it's obvious which balloons
+  // are valid click targets for completing the connection.
+  if (state.connectPickerSourceId) {
+    for (const b of state.balloons) {
+      const isSrc = b.id === state.connectPickerSourceId;
+      const pad = Math.max(6, (b.strokeW || 1) * 2 + 4);
+      const ring = document.createElementNS(SVG_NS, "ellipse");
+      ring.setAttribute("cx", b.cx);
+      ring.setAttribute("cy", b.cy);
+      ring.setAttribute("rx", b.rx + pad);
+      ring.setAttribute("ry", b.ry + pad);
+      ring.setAttribute("fill", "none");
+      ring.setAttribute("stroke", isSrc ? "#22c55e" : "#38bdf8");
+      ring.setAttribute("stroke-width", isSrc ? 3 : 2.5);
+      if (!isSrc) ring.setAttribute("stroke-dasharray", "8 5");
+      ring.setAttribute("class", isSrc ? "conn-pick-source" : "conn-pick-target");
+      ring.setAttribute("pointer-events", "none");
+      overlay.appendChild(ring);
+    }
+  }
+
   // Klein-style overlays (crossings always; trail/badges if toggled on) drawn last so they sit on top.
   renderReadingOrderOverlay();
 
