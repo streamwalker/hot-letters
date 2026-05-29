@@ -3311,6 +3311,32 @@ window.addEventListener("keydown", (e) => {
     return;
   }
 
+  // Connector shortcuts (only when a balloon is selected and we're not editing text):
+  //   C            — arm connect mode from the selected balloon (then click another, or Esc)
+  //   Shift+C / X  — remove the connector on the selected balloon, if any
+  if (!isEditing && !isMod && state.selectedId) {
+    const b = state.balloons.find(x => x.id === state.selectedId);
+    if (b) {
+      if (e.key === "c" && !e.shiftKey) {
+        e.preventDefault();
+        state.connectPickerSourceId = state.connectPickerSourceId === b.id ? null : b.id;
+        render(); syncInspector();
+        toast(state.connectPickerSourceId ? "Click another balloon to connect (Esc to cancel)" : "Connect cancelled");
+        return;
+      }
+      if ((e.key === "C" || (e.key === "c" && e.shiftKey) || e.key === "x" || e.key === "X") && b.connectedTo) {
+        e.preventDefault();
+        pushUndo();
+        const partner = state.balloons.find(x => x.id === b.connectedTo);
+        if (partner && partner.connectedTo === b.id) partner.connectedTo = null;
+        b.connectedTo = null;
+        render(); syncInspector();
+        toast("Connector removed");
+        return;
+      }
+    }
+  }
+
   // Undo / Redo (do not fire while typing in an input/textarea/contenteditable — let the browser
   // handle native text undo there).
   if (isMod && !isEditing) {
