@@ -1,56 +1,39 @@
-## Problem
-
-Today the connector tube auto-draws a single shape between two balloon centers using a fixed arch (`Math.min(40, len*0.12)`) and a width derived from `tailW`. The result is the bulging, top-heavy lobe in the first screenshot. The Blambot reference shows a narrow, mostly straight tube with a gentle curve and clean joins — and a letterer manipulates each connector by hand.
-
 ## Goal
 
-Give every connector on-canvas handles so the user can resize, reshape, and re-aim it — and mirror those controls in the inspector.
+Add a per-connector toggle that removes the seam line where the connector tube meets each balloon, so a connected pair reads as one continuous shape (like the reference image).
 
-## Changes
+## UI
 
-### 1. Connector data model (`src/letterer-app.js`)
+In `src/letterer-body.html`, inside the existing **Connector shape controls** block (already shown when a connected balloon is selected), add a checkbox:
 
-Per-connector overrides stored on the "owner" balloon (the one whose `connectedTo` is set, sorted by id to keep one source of truth):
+- `☐ Seamless join (merge tube with balloons)` — default ON for new connectors, OFF preserves today's look.
 
-- `connectorW` (already exists) — tube width in px. Default lowered to `~10` (was effectively `tailW`, often 20+).
-- `connectorCurve` — signed perpendicular offset of the midpoint in px. Default `0` (straight tube) instead of the current auto-arch.
-- `connectorAttachA` / `connectorAttachC` — angle in radians around each balloon's center for the attachment point. Default `undefined` → falls back to current "ray toward other center". Lets the user drag the join up/down the balloon edge.
+Wired the same way as the existing "Organic" / "Dashed" checkboxes in the Balloon Edges section.
 
-### 2. Tube geometry
+## Data
 
-Rewrite `makeConnectorTubePath`:
-- Resolve each endpoint via `ellipsePoint(b, angle)` when an override angle is set, otherwise current `balloonEdgePoint`.
-- Use a single quadratic curve per side through one shared mid control point offset by `connectorCurve` along the perpendicular. `connectorCurve === 0` ⇒ effectively straight tube (matches the right-hand connector in Fig. 5.1).
-- Width tapers linearly between `widthA` and `widthC`; default both to `connectorW`.
+In `src/letterer-app.js`, store `connectorSeamless: true` on the connector **owner** balloon (the same balloon that already holds `connectorW`, `connectorCurve`, `connectorAngleOwner/Partner`). Initialize it to `true` in the "Connect to Another Balloon" handler alongside the other connector defaults, and include it in project save/load and smart-place paths next to the existing connector fields.
 
-### 3. On-canvas handles
+## Rendering
 
-In the existing connector render pass, when either connected balloon is `state.selectedId`, also append three handles to the overlay (same visual language as the existing tail-tip handle):
+In the connector render pass (around lines 952–974) and the per-balloon body pass that follows:
 
-- **Width handle** — small square at the midpoint, perpendicular to the tube. Dragging perpendicular to the tube axis adjusts `connectorW` (4–60 px).
-- **Curve handle** — circle at the midpoint along the tube centerline. Dragging perpendicular adjusts `connectorCurve` (−120…120). Snap to 0 within ±4 px.
-- **Two attachment handles** — small dots on each balloon edge. Dragging slides the join around that balloon (updates `connectorAttachA` / `connectorAttachC`).
+When `owner.connectorSeamless` is true for the pair:
 
-Wire `pointerdown/move/up` like the existing tail-tip drag (search for `tailX` drag handler). Each drag pushes a single undo entry on `pointerup`.
+1. Build an SVG `<mask>` per pair (white = visible, black = hidden), using the same `SVG_NS` + `<defs>` pattern already used for the linked-pair masks higher up in the same file.
+2. **Tube**: draw fill with no stroke, then draw the tube stroke through a mask that punches out each balloon's interior shape — so the tube's chord/closing stroke that sits inside either balloon disappears.
+3. **Balloons**: when rendering each connected balloon's body stroke, apply a mask that punches out the tube polygon — so the balloon outline does not cross the tube opening.
 
-### 4. Inspector (`src/letterer-body.html` + sync in `src/letterer-app.js`)
+For shapes other than `ellipse` / `rect`, fall back to today's behavior (no masking) since cloud/burst outlines are irregular; the toggle still works visually because the tube fill already matches the balloon fill.
 
-Inside the existing **Connect / Split** section, when the selected balloon is connected, reveal:
+When `connectorSeamless` is false, render exactly as today (visible seam).
 
-- Width slider (4–60).
-- Curve slider (−120…120) with a "Straighten" button that resets to 0.
-- "Swap attachment side" button that flips the join to the other side of each balloon (rotates each attach angle by π).
+## Files touched
 
-The existing "Remove Connector" button stays.
-
-### 5. Defaults that fix the screenshot
-
-- New connectors are created with `connectorW = round(min(a.rx, c.rx) * 0.18)` clamped to 8–16, and `connectorCurve = 0`. That alone produces the narrow, near-straight tube from the reference instead of the current bulging arch.
-
-### 6. Persistence
-
-Add the new fields to the project save/load (`btn-save` / `file-load` handlers already serialize the full balloons array, so this is automatic) and to the smart-place / autoformat paths so they don't strip the overrides.
+- `src/letterer-body.html` — add checkbox inside `#conn-shape-controls`.
+- `src/letterer-app.js` — default value, save/load, inspector sync + change handler, masked render branch in the connector + body passes.
 
 ## Out of scope
 
-No changes to tails, joined-pair (Split), or balloon shapes. Export PNG already renders from the same path, so it picks the new geometry up for free.
+- No change to tail rendering, joined-pair "Split" rendering, or balloon shapes.
+- No change to PNG export pipeline beyond what it picks up for free from the shared render path.
