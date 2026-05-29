@@ -1275,28 +1275,45 @@ function balloonEdgePoint(b, tx, ty) {
   return ellipsePoint(b.cx, b.cy, b.rx, b.ry, ang);
 }
 
-// Build a tube path between two balloons that have been connected. Quadratic curves on both edges
-// with a slight perpendicular arc so the connector reads as an organic tube, not a hard rectangle.
-function makeConnectorTubePath(a, c) {
-  const dx = c.cx - a.cx, dy = c.cy - a.cy;
+// Resolve the "owner" balloon of a connector pair — the one whose properties
+// store the per-connector overrides (width, curve, attach angles). We pick the
+// balloon with the lexicographically smaller id so the choice is deterministic
+// regardless of which balloon the user selected first.
+function getConnectorOwner(a, c) {
+  return (a.id < c.id) ? { owner: a, partner: c } : { owner: c, partner: a };
+}
+
+// Full geometry of a connector — endpoints, midpoints, perpendicular vector,
+// width, curve. Used by both path rendering and the drag handles.
+function connectorGeometry(a, c) {
+  const { owner, partner } = getConnectorOwner(a, c);
+  const defOwnerAng = Math.atan2(partner.cy - owner.cy, partner.cx - owner.cx);
+  const defPartnerAng = Math.atan2(owner.cy - partner.cy, owner.cx - partner.cx);
+  const ownerAng = (typeof owner.connectorAngleOwner === "number") ? owner.connectorAngleOwner : defOwnerAng;
+  const partnerAng = (typeof owner.connectorAnglePartner === "number") ? owner.connectorAnglePartner : defPartnerAng;
+  const eOwner = ellipsePoint(owner.cx, owner.cy, owner.rx, owner.ry, ownerAng);
+  const ePartner = ellipsePoint(partner.cx, partner.cy, partner.rx, partner.ry, partnerAng);
+  const dx = ePartner.x - eOwner.x, dy = ePartner.y - eOwner.y;
   const len = Math.hypot(dx, dy) || 1;
-  if (len < a.rx + c.rx + 4) return null; // overlapping — skip; user can use Split instead
   const ux = dx / len, uy = dy / len;
-  const nx = -uy, ny = ux; // perpendicular
-  const widthA = Math.max(4, a.connectorW || a.tailW || 12);
-  const widthC = Math.max(4, c.connectorW || c.tailW || 12);
-  const eA = balloonEdgePoint(a, c.cx, c.cy);
-  const eC = balloonEdgePoint(c, a.cx, a.cy);
-  // Four corner points of the tube (two on each balloon edge), offset perpendicular by half-width.
-  const a1 = { x: eA.x + nx * widthA / 2, y: eA.y + ny * widthA / 2 };
-  const a2 = { x: eA.x - nx * widthA / 2, y: eA.y - ny * widthA / 2 };
-  const c1 = { x: eC.x + nx * widthC / 2, y: eC.y + ny * widthC / 2 };
-  const c2 = { x: eC.x - nx * widthC / 2, y: eC.y - ny * widthC / 2 };
-  // Slight arch — control points pushed perpendicular by min(40, len*0.12)
-  const arch = Math.min(40, len * 0.12);
-  const mx = (eA.x + eC.x) / 2, my = (eA.y + eC.y) / 2;
-  const cp1 = { x: mx + nx * (widthA / 2 + arch), y: my + ny * (widthA / 2 + arch) };
-  const cp2 = { x: mx - nx * (widthC / 2 + arch), y: my - ny * (widthC / 2 + arch) };
+  const nx = -uy, ny = ux;
+  const width = Math.max(4, owner.connectorW || 10);
+  const curve = (typeof owner.connectorCurve === "number") ? owner.connectorCurve : 0;
+  const midAxis = { x: (eOwner.x + ePartner.x) / 2, y: (eOwner.y + ePartner.y) / 2 };
+  const midCenter = { x: midAxis.x + nx * curve, y: midAxis.y + ny * curve };
+  return { owner, partner, eOwner, ePartner, ux, uy, nx, ny, len, width, curve, midAxis, midCenter, ownerAng, partnerAng };
+}
+
+function makeConnectorTubePath(a, c) {
+  const g = connectorGeometry(a, c);
+  if (g.len < 4) return null;
+  const halfW = g.width / 2;
+  const a1 = { x: g.eOwner.x + g.nx * halfW, y: g.eOwner.y + g.ny * halfW };
+  const a2 = { x: g.eOwner.x - g.nx * halfW, y: g.eOwner.y - g.ny * halfW };
+  const c1 = { x: g.ePartner.x + g.nx * halfW, y: g.ePartner.y + g.ny * halfW };
+  const c2 = { x: g.ePartner.x - g.nx * halfW, y: g.ePartner.y - g.ny * halfW };
+  const cp1 = { x: g.midCenter.x + g.nx * halfW, y: g.midCenter.y + g.ny * halfW };
+  const cp2 = { x: g.midCenter.x - g.nx * halfW, y: g.midCenter.y - g.ny * halfW };
   return [
     `M ${a1.x.toFixed(2)} ${a1.y.toFixed(2)}`,
     `Q ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)} ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}`,
