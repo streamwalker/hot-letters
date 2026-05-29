@@ -94,6 +94,10 @@
   .selection-box { fill: none; stroke: #f5a623; stroke-width: 1; stroke-dasharray: 4 3; pointer-events: none; }
   .handle { fill: #f5a623; stroke: #1a1d23; stroke-width: 1; cursor: nwse-resize; }
   .tail-handle { fill: #4ea1ff; stroke: #1a1d23; stroke-width: 1; cursor: move; }
+  .conn-handle { stroke: #1a1d23; stroke-width: 1; cursor: move; }
+  .conn-handle.conn-width { fill: #f5a623; cursor: ew-resize; }
+  .conn-handle.conn-curve { fill: #b388ff; }
+  .conn-handle.conn-attach { fill: #4ea1ff; }
   .balloon-text { user-select: text; outline: none; line-height: 1.1; text-align: center; }
   .balloon-text:focus { outline: 1px dashed var(--accent); }
 
