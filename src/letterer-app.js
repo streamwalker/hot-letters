@@ -1498,6 +1498,57 @@ function drawSelectionChrome(b) {
     c.addEventListener("pointerdown", (e) => onTailPointerDown(e, b));
     overlay.appendChild(c);
   }
+
+  // Connector handles: width, curve, and one attachment handle on each balloon.
+  // Shown when this balloon is connected to another so the letterer can shape the tube
+  // directly on the canvas (Blambot Fig. 5.1 — connectors are hand-tuned, not auto-fit).
+  if (b.connectedTo) {
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (partner) drawConnectorHandles(b, partner);
+  }
+}
+
+// Draw width/curve/attachment handles for a connector pair.
+function drawConnectorHandles(a, c) {
+  const g = connectorGeometry(a, c);
+  if (g.len < 4) return;
+  const sz = state.mobileMode ? 20 : 10;
+  const dot = state.mobileMode ? 12 : 6;
+
+  // Attachment handle on owner edge
+  const hA = document.createElementNS(SVG_NS, "circle");
+  hA.setAttribute("cx", g.eOwner.x); hA.setAttribute("cy", g.eOwner.y);
+  hA.setAttribute("r", dot);
+  hA.setAttribute("class", "conn-handle conn-attach");
+  hA.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "attach-owner"));
+  overlay.appendChild(hA);
+
+  // Attachment handle on partner edge
+  const hC = document.createElementNS(SVG_NS, "circle");
+  hC.setAttribute("cx", g.ePartner.x); hC.setAttribute("cy", g.ePartner.y);
+  hC.setAttribute("r", dot);
+  hC.setAttribute("class", "conn-handle conn-attach");
+  hC.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "attach-partner"));
+  overlay.appendChild(hC);
+
+  // Curve handle — on the tube centerline at the (possibly-offset) midpoint.
+  const hCurve = document.createElementNS(SVG_NS, "circle");
+  hCurve.setAttribute("cx", g.midCenter.x); hCurve.setAttribute("cy", g.midCenter.y);
+  hCurve.setAttribute("r", dot);
+  hCurve.setAttribute("class", "conn-handle conn-curve");
+  hCurve.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "curve"));
+  overlay.appendChild(hCurve);
+
+  // Width handle — a square sitting on the +n edge of the tube at midCenter.
+  const halfW = g.width / 2;
+  const wx = g.midCenter.x + g.nx * halfW;
+  const wy = g.midCenter.y + g.ny * halfW;
+  const hW = document.createElementNS(SVG_NS, "rect");
+  hW.setAttribute("x", wx - sz / 2); hW.setAttribute("y", wy - sz / 2);
+  hW.setAttribute("width", sz); hW.setAttribute("height", sz);
+  hW.setAttribute("class", "conn-handle conn-width");
+  hW.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "width"));
+  overlay.appendChild(hW);
 }
 
 // ============== INTERACTION ==============
