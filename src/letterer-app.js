@@ -1626,6 +1626,27 @@ window.addEventListener("pointermove", (e) => {
     drag.b.cy = drag.startCy + (sy * dy) / 2;
   } else if (drag.type === "tail") {
     drag.b.tailX = pt.x; drag.b.tailY = pt.y;
+  } else if (drag.type === "connector") {
+    const g = connectorGeometry(drag.a, drag.c);
+    const owner = g.owner;
+    if (drag.mode === "width") {
+      // Projection of pointer offset (from axis midpoint) onto perpendicular n = half-width.
+      const dx = pt.x - g.midAxis.x, dy = pt.y - g.midAxis.y;
+      const proj = Math.abs(dx * g.nx + dy * g.ny);
+      // Subtract the curve component so width and curve handles don't fight each other.
+      const halfW = Math.max(2, proj - Math.abs(g.curve));
+      owner.connectorW = Math.max(4, Math.min(80, halfW * 2));
+    } else if (drag.mode === "curve") {
+      const dx = pt.x - g.midAxis.x, dy = pt.y - g.midAxis.y;
+      let curve = dx * g.nx + dy * g.ny;
+      if (Math.abs(curve) < 5) curve = 0; // snap to straight
+      owner.connectorCurve = Math.max(-200, Math.min(200, curve));
+    } else if (drag.mode === "attach-owner" || drag.mode === "attach-partner") {
+      const target = (drag.mode === "attach-owner") ? g.owner : g.partner;
+      const field = (drag.mode === "attach-owner") ? "connectorAngleOwner" : "connectorAnglePartner";
+      const ang = Math.atan2(pt.y - target.cy, pt.x - target.cx);
+      owner[field] = ang;
+    }
   }
   render();
 });
