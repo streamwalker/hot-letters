@@ -1704,6 +1704,27 @@ function syncInspector() {
   $("btn-unlink-balloon").style.display = b.linkedTo ? "block" : "none";
   $("btn-connect-balloon").style.display = b.connectedTo ? "none" : "block";
   $("btn-disconnect-balloon").style.display = b.connectedTo ? "block" : "none";
+  // Connector shape controls — only when this balloon is connected.
+  const shapeCtl = $("conn-shape-controls");
+  if (shapeCtl) {
+    if (b.connectedTo) {
+      const partner = state.balloons.find(x => x.id === b.connectedTo);
+      if (partner) {
+        const { owner } = getConnectorOwner(b, partner);
+        const w = Math.round(owner.connectorW || 10);
+        const cv = Math.round(owner.connectorCurve || 0);
+        $("i-conn-w").value = String(w);
+        $("i-conn-w-val").textContent = String(w);
+        $("i-conn-curve").value = String(cv);
+        $("i-conn-curve-val").textContent = String(cv);
+        shapeCtl.style.display = "block";
+      } else {
+        shapeCtl.style.display = "none";
+      }
+    } else {
+      shapeCtl.style.display = "none";
+    }
+  }
   $("btn-connect-balloon").textContent = state.connectPickerSourceId
     ? "Click another balloon… (Esc to cancel)"
     : "Connect to Another Balloon…";
