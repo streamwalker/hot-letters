@@ -1516,9 +1516,18 @@ function onBalloonPointerDown(e, b) {
           const p = state.balloons.find(y => y.id === x.connectedTo);
           if (p) p.connectedTo = null;
         }
+        // Reset per-connector overrides so the new pairing starts clean.
+        x.connectorAngleOwner = null;
+        x.connectorAnglePartner = null;
+        x.connectorCurve = 0;
       });
       src.connectedTo = b.id;
       b.connectedTo = src.id;
+      // Set a narrow default width on the owner — Blambot Fig. 5.1 connectors are slim,
+      // not as wide as the body. Use ~18% of the smaller balloon's rx, clamped 8–16.
+      const { owner } = getConnectorOwner(src, b);
+      const baseW = Math.round(Math.min(src.rx, b.rx) * 0.18);
+      owner.connectorW = Math.max(8, Math.min(16, baseW));
     }
     state.connectPickerSourceId = null;
     selectBalloon(b.id);
