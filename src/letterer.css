@@ -456,3 +456,11 @@
   cursor: not-allowed;
 }
 #script-viewer { position: relative; }
+
+/* Connect-mode highlights: pulse valid target balloons so the active picker mode is obvious. */
+@keyframes connPulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+.conn-pick-target { animation: connPulse 1.1s ease-in-out infinite; }
+.conn-pick-source { opacity: 0.95; }
