@@ -130,6 +130,21 @@ KRAKKK"></textarea>
         <h3>Connect / Split</h3>
         <button id="btn-connect-balloon" style="background:var(--accent);color:#1a1d23;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;" title="Blambot 'Balloon Connector' — link two balloons with a narrow tube">Connect to Another Balloon…</button>
         <button id="btn-disconnect-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Remove Connector</button>
+        <div id="conn-shape-controls" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);">
+          <div class="field" style="margin-bottom:6px;">
+            <label>Connector width — <span id="i-conn-w-val">10</span></label>
+            <input type="range" id="i-conn-w" min="4" max="80" step="1" value="10" style="width:100%;">
+          </div>
+          <div class="field" style="margin-bottom:6px;">
+            <label>Curve — <span id="i-conn-curve-val">0</span></label>
+            <input type="range" id="i-conn-curve" min="-200" max="200" step="1" value="0" style="width:100%;">
+          </div>
+          <div style="display:flex;gap:4px;">
+            <button id="btn-conn-straighten" style="flex:1;background:var(--panel-2);color:var(--text);border:1px solid var(--border);padding:5px;border-radius:4px;cursor:pointer;font-size:11px;">Straighten</button>
+            <button id="btn-conn-flip" style="flex:1;background:var(--panel-2);color:var(--text);border:1px solid var(--border);padding:5px;border-radius:4px;cursor:pointer;font-size:11px;" title="Flip attachment to the other side of each balloon">Flip Sides</button>
+          </div>
+          <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;">Drag the orange square on the tube to change width, the purple dot to bend it, the blue dots to slide the joins around each balloon.</p>
+        </div>
         <button id="btn-split-balloon" style="background:var(--accent-2);color:#fff;width:100%;padding:7px;border:0;border-radius:4px;cursor:pointer;font-weight:600;font-size:12px;margin-top:6px;">Split into Joined Pair</button>
         <button id="btn-unlink-balloon" style="display:none;background:var(--panel-2);color:var(--text);border:1px solid var(--border);width:100%;padding:7px;border-radius:4px;cursor:pointer;font-size:12px;margin-top:4px;">Unjoin Balloons</button>
         <p style="font-size:10px;color:var(--text-dim);margin:6px 0 0;line-height:1.4;"><strong>Connect</strong> links two balloons with a narrow tube. <strong>Split</strong> creates a joined double bubble.</p>

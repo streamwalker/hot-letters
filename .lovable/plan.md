@@ -1,26 +1,56 @@
 ## Problem
 
-The new lens balancer is producing 4 very long lines instead of the desired ~8-line lens stack. The current scorer rewards lens-shape *proportions* but not the overall *aspect* of the rendered block, so a partition like N=4 with k=1.3 (very wide budget) scores well — its 4 lines do trace `[.66, .99, .99, .66]` correctly, just at a huge maxW. The "anti-oval" penalty (0.4 each) is too weak to overcome that.
+Today the connector tube auto-draws a single shape between two balloon centers using a fixed arch (`Math.min(40, len*0.12)`) and a width derived from `tailW`. The result is the bulging, top-heavy lobe in the first screenshot. The Blambot reference shows a narrow, mostly straight tube with a gentle curve and clean joins — and a letterer manipulates each connector by hand.
 
-The reference image is ~8 lines tall with widest line ≈ "OR THE GAIANS REACH THE LUMINATOR," — a block aspect (widest line ÷ total height) around **1.7–1.9**.
+## Goal
 
-## Fix (single file: `src/letterer-app.js`, `balanceLinesLens` only)
+Give every connector on-canvas handles so the user can resize, reshape, and re-aim it — and mirror those controls in the inspector.
 
-1. **Add an aspect target to the score.** Compute `aspect = maxW / (N * fontSize * 1.18)` for each candidate and add `Math.pow(aspect - 1.75, 2) * 0.6` to the score. This pulls the optimizer toward tall lens stacks (target 1.75) instead of flat 4-liners (which hit aspect ~4+).
+## Changes
 
-2. **Cap absolute line width.** Reject any candidate where `maxW > fullW * 0.55` (i.e. no single line may exceed ~55% of the all-words width). For the reference text (~30 words) this caps lines at ~16–18 words rendered width and forces N ≥ 6.
+### 1. Connector data model (`src/letterer-app.js`)
 
-3. **Strengthen the anti-oval penalty.** Bump first/last-row-too-wide penalties from `0.4` to `0.9`, and only apply when first/last width is ≥ 90% of its neighbor (the current `0.98` threshold rarely fires).
+Per-connector overrides stored on the "owner" balloon (the one whose `connectedTo` is set, sorted by id to keep one source of truth):
 
-4. **Expand the budget sweep.** Replace `[0.85, 1.0, 1.15, 1.3]` with `[0.75, 0.9, 1.0, 1.1, 1.25]`. Narrower budgets are needed to make N=7–8 fit cleanly without overflowing into the leftover-words append branch.
+- `connectorW` (already exists) — tube width in px. Default lowered to `~10` (was effectively `tailW`, often 20+).
+- `connectorCurve` — signed perpendicular offset of the midpoint in px. Default `0` (straight tube) instead of the current auto-arch.
+- `connectorAttachA` / `connectorAttachC` — angle in radians around each balloon's center for the attachment point. Default `undefined` → falls back to current "ray toward other center". Lets the user drag the join up/down the balloon edge.
 
-5. **Penalize leftover overflow.** When `fitToTargets` appends overflow into the last line (the `if (i < words.length)` branch), mark that candidate by returning a flag; in the scorer add `+1.0` so clean fits are strongly preferred.
+### 2. Tube geometry
+
+Rewrite `makeConnectorTubePath`:
+- Resolve each endpoint via `ellipsePoint(b, angle)` when an override angle is set, otherwise current `balloonEdgePoint`.
+- Use a single quadratic curve per side through one shared mid control point offset by `connectorCurve` along the perpendicular. `connectorCurve === 0` ⇒ effectively straight tube (matches the right-hand connector in Fig. 5.1).
+- Width tapers linearly between `widthA` and `widthC`; default both to `connectorW`.
+
+### 3. On-canvas handles
+
+In the existing connector render pass, when either connected balloon is `state.selectedId`, also append three handles to the overlay (same visual language as the existing tail-tip handle):
+
+- **Width handle** — small square at the midpoint, perpendicular to the tube. Dragging perpendicular to the tube axis adjusts `connectorW` (4–60 px).
+- **Curve handle** — circle at the midpoint along the tube centerline. Dragging perpendicular adjusts `connectorCurve` (−120…120). Snap to 0 within ±4 px.
+- **Two attachment handles** — small dots on each balloon edge. Dragging slides the join around that balloon (updates `connectorAttachA` / `connectorAttachC`).
+
+Wire `pointerdown/move/up` like the existing tail-tip drag (search for `tailX` drag handler). Each drag pushes a single undo entry on `pointerup`.
+
+### 4. Inspector (`src/letterer-body.html` + sync in `src/letterer-app.js`)
+
+Inside the existing **Connect / Split** section, when the selected balloon is connected, reveal:
+
+- Width slider (4–60).
+- Curve slider (−120…120) with a "Straighten" button that resets to 0.
+- "Swap attachment side" button that flips the join to the other side of each balloon (rotates each attach angle by π).
+
+The existing "Remove Connector" button stays.
+
+### 5. Defaults that fix the screenshot
+
+- New connectors are created with `connectorW = round(min(a.rx, c.rx) * 0.18)` clamped to 8–16, and `connectorCurve = 0`. That alone produces the narrow, near-straight tube from the reference instead of the current bulging arch.
+
+### 6. Persistence
+
+Add the new fields to the project save/load (`btn-save` / `file-load` handlers already serialize the full balloons array, so this is automatic) and to the smart-place / autoformat paths so they don't strip the overrides.
 
 ## Out of scope
 
-- No changes to `fitBalloonToText`, `segmentSentences`, `lensTargetWidths`, `balanceLinesRect`, typography normalization, or any UI.
-- No new balloon fields.
-
-## Expected result on the reference text
-
-With these four changes, N=7 or N=8 with k≈0.9–1.0 wins the score, producing the `CAPTAIN RHEA!` forced top line followed by 7 progressively widening-then-narrowing lines, with `fitBalloonToText` then sizing the oval to match.
+No changes to tails, joined-pair (Split), or balloon shapes. Export PNG already renders from the same path, so it picks the new geometry up for free.

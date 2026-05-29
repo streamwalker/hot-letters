@@ -1275,28 +1275,45 @@ function balloonEdgePoint(b, tx, ty) {
   return ellipsePoint(b.cx, b.cy, b.rx, b.ry, ang);
 }
 
-// Build a tube path between two balloons that have been connected. Quadratic curves on both edges
-// with a slight perpendicular arc so the connector reads as an organic tube, not a hard rectangle.
-function makeConnectorTubePath(a, c) {
-  const dx = c.cx - a.cx, dy = c.cy - a.cy;
+// Resolve the "owner" balloon of a connector pair — the one whose properties
+// store the per-connector overrides (width, curve, attach angles). We pick the
+// balloon with the lexicographically smaller id so the choice is deterministic
+// regardless of which balloon the user selected first.
+function getConnectorOwner(a, c) {
+  return (a.id < c.id) ? { owner: a, partner: c } : { owner: c, partner: a };
+}
+
+// Full geometry of a connector — endpoints, midpoints, perpendicular vector,
+// width, curve. Used by both path rendering and the drag handles.
+function connectorGeometry(a, c) {
+  const { owner, partner } = getConnectorOwner(a, c);
+  const defOwnerAng = Math.atan2(partner.cy - owner.cy, partner.cx - owner.cx);
+  const defPartnerAng = Math.atan2(owner.cy - partner.cy, owner.cx - partner.cx);
+  const ownerAng = (typeof owner.connectorAngleOwner === "number") ? owner.connectorAngleOwner : defOwnerAng;
+  const partnerAng = (typeof owner.connectorAnglePartner === "number") ? owner.connectorAnglePartner : defPartnerAng;
+  const eOwner = ellipsePoint(owner.cx, owner.cy, owner.rx, owner.ry, ownerAng);
+  const ePartner = ellipsePoint(partner.cx, partner.cy, partner.rx, partner.ry, partnerAng);
+  const dx = ePartner.x - eOwner.x, dy = ePartner.y - eOwner.y;
   const len = Math.hypot(dx, dy) || 1;
-  if (len < a.rx + c.rx + 4) return null; // overlapping — skip; user can use Split instead
   const ux = dx / len, uy = dy / len;
-  const nx = -uy, ny = ux; // perpendicular
-  const widthA = Math.max(4, a.connectorW || a.tailW || 12);
-  const widthC = Math.max(4, c.connectorW || c.tailW || 12);
-  const eA = balloonEdgePoint(a, c.cx, c.cy);
-  const eC = balloonEdgePoint(c, a.cx, a.cy);
-  // Four corner points of the tube (two on each balloon edge), offset perpendicular by half-width.
-  const a1 = { x: eA.x + nx * widthA / 2, y: eA.y + ny * widthA / 2 };
-  const a2 = { x: eA.x - nx * widthA / 2, y: eA.y - ny * widthA / 2 };
-  const c1 = { x: eC.x + nx * widthC / 2, y: eC.y + ny * widthC / 2 };
-  const c2 = { x: eC.x - nx * widthC / 2, y: eC.y - ny * widthC / 2 };
-  // Slight arch — control points pushed perpendicular by min(40, len*0.12)
-  const arch = Math.min(40, len * 0.12);
-  const mx = (eA.x + eC.x) / 2, my = (eA.y + eC.y) / 2;
-  const cp1 = { x: mx + nx * (widthA / 2 + arch), y: my + ny * (widthA / 2 + arch) };
-  const cp2 = { x: mx - nx * (widthC / 2 + arch), y: my - ny * (widthC / 2 + arch) };
+  const nx = -uy, ny = ux;
+  const width = Math.max(4, owner.connectorW || 10);
+  const curve = (typeof owner.connectorCurve === "number") ? owner.connectorCurve : 0;
+  const midAxis = { x: (eOwner.x + ePartner.x) / 2, y: (eOwner.y + ePartner.y) / 2 };
+  const midCenter = { x: midAxis.x + nx * curve, y: midAxis.y + ny * curve };
+  return { owner, partner, eOwner, ePartner, ux, uy, nx, ny, len, width, curve, midAxis, midCenter, ownerAng, partnerAng };
+}
+
+function makeConnectorTubePath(a, c) {
+  const g = connectorGeometry(a, c);
+  if (g.len < 4) return null;
+  const halfW = g.width / 2;
+  const a1 = { x: g.eOwner.x + g.nx * halfW, y: g.eOwner.y + g.ny * halfW };
+  const a2 = { x: g.eOwner.x - g.nx * halfW, y: g.eOwner.y - g.ny * halfW };
+  const c1 = { x: g.ePartner.x + g.nx * halfW, y: g.ePartner.y + g.ny * halfW };
+  const c2 = { x: g.ePartner.x - g.nx * halfW, y: g.ePartner.y - g.ny * halfW };
+  const cp1 = { x: g.midCenter.x + g.nx * halfW, y: g.midCenter.y + g.ny * halfW };
+  const cp2 = { x: g.midCenter.x - g.nx * halfW, y: g.midCenter.y - g.ny * halfW };
   return [
     `M ${a1.x.toFixed(2)} ${a1.y.toFixed(2)}`,
     `Q ${cp1.x.toFixed(2)} ${cp1.y.toFixed(2)} ${c1.x.toFixed(2)} ${c1.y.toFixed(2)}`,
@@ -1481,6 +1498,57 @@ function drawSelectionChrome(b) {
     c.addEventListener("pointerdown", (e) => onTailPointerDown(e, b));
     overlay.appendChild(c);
   }
+
+  // Connector handles: width, curve, and one attachment handle on each balloon.
+  // Shown when this balloon is connected to another so the letterer can shape the tube
+  // directly on the canvas (Blambot Fig. 5.1 — connectors are hand-tuned, not auto-fit).
+  if (b.connectedTo) {
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (partner) drawConnectorHandles(b, partner);
+  }
+}
+
+// Draw width/curve/attachment handles for a connector pair.
+function drawConnectorHandles(a, c) {
+  const g = connectorGeometry(a, c);
+  if (g.len < 4) return;
+  const sz = state.mobileMode ? 20 : 10;
+  const dot = state.mobileMode ? 12 : 6;
+
+  // Attachment handle on owner edge
+  const hA = document.createElementNS(SVG_NS, "circle");
+  hA.setAttribute("cx", g.eOwner.x); hA.setAttribute("cy", g.eOwner.y);
+  hA.setAttribute("r", dot);
+  hA.setAttribute("class", "conn-handle conn-attach");
+  hA.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "attach-owner"));
+  overlay.appendChild(hA);
+
+  // Attachment handle on partner edge
+  const hC = document.createElementNS(SVG_NS, "circle");
+  hC.setAttribute("cx", g.ePartner.x); hC.setAttribute("cy", g.ePartner.y);
+  hC.setAttribute("r", dot);
+  hC.setAttribute("class", "conn-handle conn-attach");
+  hC.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "attach-partner"));
+  overlay.appendChild(hC);
+
+  // Curve handle — on the tube centerline at the (possibly-offset) midpoint.
+  const hCurve = document.createElementNS(SVG_NS, "circle");
+  hCurve.setAttribute("cx", g.midCenter.x); hCurve.setAttribute("cy", g.midCenter.y);
+  hCurve.setAttribute("r", dot);
+  hCurve.setAttribute("class", "conn-handle conn-curve");
+  hCurve.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "curve"));
+  overlay.appendChild(hCurve);
+
+  // Width handle — a square sitting on the +n edge of the tube at midCenter.
+  const halfW = g.width / 2;
+  const wx = g.midCenter.x + g.nx * halfW;
+  const wy = g.midCenter.y + g.ny * halfW;
+  const hW = document.createElementNS(SVG_NS, "rect");
+  hW.setAttribute("x", wx - sz / 2); hW.setAttribute("y", wy - sz / 2);
+  hW.setAttribute("width", sz); hW.setAttribute("height", sz);
+  hW.setAttribute("class", "conn-handle conn-width");
+  hW.addEventListener("pointerdown", (e) => onConnectorHandleDown(e, a, c, "width"));
+  overlay.appendChild(hW);
 }
 
 // ============== INTERACTION ==============
@@ -1499,9 +1567,18 @@ function onBalloonPointerDown(e, b) {
           const p = state.balloons.find(y => y.id === x.connectedTo);
           if (p) p.connectedTo = null;
         }
+        // Reset per-connector overrides so the new pairing starts clean.
+        x.connectorAngleOwner = null;
+        x.connectorAnglePartner = null;
+        x.connectorCurve = 0;
       });
       src.connectedTo = b.id;
       b.connectedTo = src.id;
+      // Set a narrow default width on the owner — Blambot Fig. 5.1 connectors are slim,
+      // not as wide as the body. Use ~18% of the smaller balloon's rx, clamped 8–16.
+      const { owner } = getConnectorOwner(src, b);
+      const baseW = Math.round(Math.min(src.rx, b.rx) * 0.18);
+      owner.connectorW = Math.max(8, Math.min(16, baseW));
     }
     state.connectPickerSourceId = null;
     selectBalloon(b.id);
@@ -1521,6 +1598,12 @@ function onTailPointerDown(e, b) {
   e.stopPropagation();
   selectBalloon(b.id);
   drag = { type: "tail", b };
+}
+function onConnectorHandleDown(e, a, c, mode) {
+  e.stopPropagation();
+  const g = connectorGeometry(a, c);
+  drag = { type: "connector", a, c, mode, startWidth: g.width, startCurve: g.curve };
+  overlay.setPointerCapture?.(e.pointerId);
 }
 
 window.addEventListener("pointermove", (e) => {
@@ -1543,6 +1626,27 @@ window.addEventListener("pointermove", (e) => {
     drag.b.cy = drag.startCy + (sy * dy) / 2;
   } else if (drag.type === "tail") {
     drag.b.tailX = pt.x; drag.b.tailY = pt.y;
+  } else if (drag.type === "connector") {
+    const g = connectorGeometry(drag.a, drag.c);
+    const owner = g.owner;
+    if (drag.mode === "width") {
+      // Projection of pointer offset (from axis midpoint) onto perpendicular n = half-width.
+      const dx = pt.x - g.midAxis.x, dy = pt.y - g.midAxis.y;
+      const proj = Math.abs(dx * g.nx + dy * g.ny);
+      // Subtract the curve component so width and curve handles don't fight each other.
+      const halfW = Math.max(2, proj - Math.abs(g.curve));
+      owner.connectorW = Math.max(4, Math.min(80, halfW * 2));
+    } else if (drag.mode === "curve") {
+      const dx = pt.x - g.midAxis.x, dy = pt.y - g.midAxis.y;
+      let curve = dx * g.nx + dy * g.ny;
+      if (Math.abs(curve) < 5) curve = 0; // snap to straight
+      owner.connectorCurve = Math.max(-200, Math.min(200, curve));
+    } else if (drag.mode === "attach-owner" || drag.mode === "attach-partner") {
+      const target = (drag.mode === "attach-owner") ? g.owner : g.partner;
+      const field = (drag.mode === "attach-owner") ? "connectorAngleOwner" : "connectorAnglePartner";
+      const ang = Math.atan2(pt.y - target.cy, pt.x - target.cx);
+      owner[field] = ang;
+    }
   }
   render();
 });
@@ -1600,6 +1704,27 @@ function syncInspector() {
   $("btn-unlink-balloon").style.display = b.linkedTo ? "block" : "none";
   $("btn-connect-balloon").style.display = b.connectedTo ? "none" : "block";
   $("btn-disconnect-balloon").style.display = b.connectedTo ? "block" : "none";
+  // Connector shape controls — only when this balloon is connected.
+  const shapeCtl = $("conn-shape-controls");
+  if (shapeCtl) {
+    if (b.connectedTo) {
+      const partner = state.balloons.find(x => x.id === b.connectedTo);
+      if (partner) {
+        const { owner } = getConnectorOwner(b, partner);
+        const w = Math.round(owner.connectorW || 10);
+        const cv = Math.round(owner.connectorCurve || 0);
+        $("i-conn-w").value = String(w);
+        $("i-conn-w-val").textContent = String(w);
+        $("i-conn-curve").value = String(cv);
+        $("i-conn-curve-val").textContent = String(cv);
+        shapeCtl.style.display = "block";
+      } else {
+        shapeCtl.style.display = "none";
+      }
+    } else {
+      shapeCtl.style.display = "none";
+    }
+  }
   $("btn-connect-balloon").textContent = state.connectPickerSourceId
     ? "Click another balloon… (Esc to cancel)"
     : "Connect to Another Balloon…";
@@ -1682,6 +1807,36 @@ function bindInspector() {
     if (partner && partner.connectedTo === b.id) partner.connectedTo = null;
     b.connectedTo = null;
     render(); syncInspector();
+  });
+  // Connector shape controls
+  const connWithOwner = (fn) => {
+    const b = getSelected(); if (!b || !b.connectedTo) return;
+    const partner = state.balloons.find(x => x.id === b.connectedTo);
+    if (!partner) return;
+    const { owner } = getConnectorOwner(b, partner);
+    pushUndo();
+    fn(owner, b, partner);
+    render(); syncInspector();
+  };
+  $("i-conn-w").addEventListener("input", () => {
+    const v = +$("i-conn-w").value;
+    $("i-conn-w-val").textContent = String(v);
+    connWithOwner(o => { o.connectorW = v; });
+  });
+  $("i-conn-curve").addEventListener("input", () => {
+    const v = +$("i-conn-curve").value;
+    $("i-conn-curve-val").textContent = String(v);
+    connWithOwner(o => { o.connectorCurve = v; });
+  });
+  $("btn-conn-straighten").addEventListener("click", () => {
+    connWithOwner(o => { o.connectorCurve = 0; });
+  });
+  $("btn-conn-flip").addEventListener("click", () => {
+    connWithOwner((o, b, partner) => {
+      const g = connectorGeometry(b, partner);
+      o.connectorAngleOwner = g.ownerAng + Math.PI;
+      o.connectorAnglePartner = g.partnerAng + Math.PI;
+    });
   });
   $("btn-match-tail-o").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
