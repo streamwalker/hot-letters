@@ -1890,6 +1890,10 @@ function bindInspector() {
       o.connectorAnglePartner = g.partnerAng + Math.PI;
     });
   });
+  $("i-conn-seamless").addEventListener("change", () => {
+    const on = $("i-conn-seamless").checked;
+    connWithOwner(o => { o.connectorSeamless = on; });
+  });
   $("btn-match-tail-o").addEventListener("click", () => {
     const b = getSelected(); if (!b) return;
     pushUndo();
