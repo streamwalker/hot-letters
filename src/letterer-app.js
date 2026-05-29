@@ -1807,6 +1807,11 @@ function syncInspector() {
   $("btn-connect-toolbar").textContent = state.connectPickerSourceId
     ? "Click target balloon…"
     : "Connect Balloons";
+  // Scroll the Connect / Split section into view when a balloon is selected
+  const connSection = $("inspector-connect-split");
+  if (connSection) {
+    connSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 function toHex(c) {
