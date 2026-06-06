@@ -9,12 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as PanelcraftRouteImport } from './routes/panelcraft'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as ApiOcrScriptRouteImport } from './routes/api/ocr-script'
 
+const PanelcraftRoute = PanelcraftRouteImport.update({
+  id: '/panelcraft',
+  path: '/panelcraft',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -44,11 +50,13 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
+  '/panelcraft': typeof PanelcraftRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
 }
 export interface FileRoutesByTo {
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
+  '/panelcraft': typeof PanelcraftRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -57,19 +65,21 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
+  '/panelcraft': typeof PanelcraftRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/diagnostics' | '/login' | '/api/ocr-script'
+  fullPaths: '/' | '/diagnostics' | '/login' | '/panelcraft' | '/api/ocr-script'
   fileRoutesByTo: FileRoutesByTo
-  to: '/diagnostics' | '/login' | '/api/ocr-script' | '/'
+  to: '/diagnostics' | '/login' | '/panelcraft' | '/api/ocr-script' | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/diagnostics'
     | '/login'
+    | '/panelcraft'
     | '/api/ocr-script'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -78,11 +88,19 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   DiagnosticsRoute: typeof DiagnosticsRoute
   LoginRoute: typeof LoginRoute
+  PanelcraftRoute: typeof PanelcraftRoute
   ApiOcrScriptRoute: typeof ApiOcrScriptRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/panelcraft': {
+      id: '/panelcraft'
+      path: '/panelcraft'
+      fullPath: '/panelcraft'
+      preLoaderRoute: typeof PanelcraftRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -137,6 +155,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   DiagnosticsRoute: DiagnosticsRoute,
   LoginRoute: LoginRoute,
+  PanelcraftRoute: PanelcraftRoute,
   ApiOcrScriptRoute: ApiOcrScriptRoute,
 }
 export const routeTree = rootRouteImport
