@@ -1,39 +1,45 @@
-## Goal
+# Edit balloons on an existing lettered page
 
-Add a per-connector toggle that removes the seam line where the connector tube meets each balloon, so a connected pair reads as one continuous shape (like the reference image).
+Add a workflow for pages that already have word balloons drawn on them: trace each existing balloon, pull the text out with OCR, get an editable balloon in its place, and optionally white-out the original underneath.
 
-## UI
+## User flow
 
-In `src/letterer-body.html`, inside the existing **Connector shape controls** block (already shown when a connected balloon is selected), add a checkbox:
+1. Load Page Image as usual.
+2. Click a new toolbar button **Trace Existing Balloon** (next to `+ Add Balloon`). Cursor switches to crosshair; a hint banner appears: "Drag a rectangle around an existing balloon. Esc to cancel."
+3. User drags a rectangle around one balloon on the canvas.
+4. On release:
+   - A new editable balloon is created sized to that rectangle (default Speech preset, ellipse shape, sensible padding).
+   - The cropped rectangle is sent to the existing `/api/ocr-script` route (already used for script photos) to extract the text inside; the returned text fills the new balloon.
+   - A small inline prompt appears on the new balloon: **Erase original underneath?** with Yes / No buttons.
+     - **Yes** → record a "white-out mask" for that balloon (the traced rect, slightly inset to match the balloon outline) so the page renders with a white fill over that area beneath the new balloon. Stored per balloon so it's undoable and exported correctly.
+     - **No** → just leave the original art showing through.
+5. Trace mode stays active so the user can trace the next balloon; Esc or clicking the toolbar button again exits.
+6. From here, every balloon behaves like any other balloon — edit text, restyle, connect, auto-format, smart-place, delete, etc.
 
-- `☐ Seamless join (merge tube with balloons)` — default ON for new connectors, OFF preserves today's look.
+## Rendering & export
 
-Wired the same way as the existing "Organic" / "Dashed" checkboxes in the Balloon Edges section.
+- White-out masks render as white rects on the canvas SVG overlay underneath all balloon shapes, above the page image.
+- PNG export composites the same masks so the exported page matches what's on screen.
+- Save / Load Project serialize the mask list alongside balloons.
 
-## Data
+## Edge cases
 
-In `src/letterer-app.js`, store `connectorSeamless: true` on the connector **owner** balloon (the same balloon that already holds `connectorW`, `connectorCurve`, `connectorAngleOwner/Partner`). Initialize it to `true` in the "Connect to Another Balloon" handler alongside the other connector defaults, and include it in project save/load and smart-place paths next to the existing connector fields.
+- OCR failure or empty result → balloon is created with empty text and a toast: "Couldn't read text — type it in."
+- Trace rectangle smaller than ~20px is ignored (prevents accidental clicks).
+- Undo / Redo cover both the new balloon and its white-out mask as a single step.
+- Works at any zoom level — rectangle is captured in image-space coordinates, not screen-space.
 
-## Rendering
+## Technical notes
 
-In the connector render pass (around lines 952–974) and the per-balloon body pass that follows:
+Files touched:
 
-When `owner.connectorSeamless` is true for the pair:
+- `src/letterer-body.html` — add `#btn-trace-balloon` toolbar button and a `#trace-hint` banner element.
+- `src/letterer.css` — crosshair cursor + selection rectangle styles, trace-hint banner, inline "Erase original?" prompt styles.
+- `src/letterer-app.js` —
+  - new `state.traceMode` flag and pointer handlers on `#canvas-stage` to draw the marquee in image coordinates.
+  - `state.whiteoutMasks: [{ id, balloonId, x, y, w, h }]` array; rendered as `<rect fill="white">` in the SVG overlay; included in PNG export and project save/load.
+  - on trace release: create balloon (reuse existing add-balloon helper), crop the page image to a canvas, post the data URL to `/api/ocr-script`, fill `balloon.text` with the response, show inline Yes/No prompt anchored to the new balloon.
+  - undo/redo: push a single history entry containing both the new balloon and (if chosen) the mask.
+- No backend changes — `/api/ocr-script` already accepts an image and returns text.
 
-1. Build an SVG `<mask>` per pair (white = visible, black = hidden), using the same `SVG_NS` + `<defs>` pattern already used for the linked-pair masks higher up in the same file.
-2. **Tube**: draw fill with no stroke, then draw the tube stroke through a mask that punches out each balloon's interior shape — so the tube's chord/closing stroke that sits inside either balloon disappears.
-3. **Balloons**: when rendering each connected balloon's body stroke, apply a mask that punches out the tube polygon — so the balloon outline does not cross the tube opening.
-
-For shapes other than `ellipse` / `rect`, fall back to today's behavior (no masking) since cloud/burst outlines are irregular; the toggle still works visually because the tube fill already matches the balloon fill.
-
-When `connectorSeamless` is false, render exactly as today (visible seam).
-
-## Files touched
-
-- `src/letterer-body.html` — add checkbox inside `#conn-shape-controls`.
-- `src/letterer-app.js` — default value, save/load, inspector sync + change handler, masked render branch in the connector + body passes.
-
-## Out of scope
-
-- No change to tail rendering, joined-pair "Split" rendering, or balloon shapes.
-- No change to PNG export pipeline beyond what it picks up for free from the shared render path.
+Out of scope: automatic detection of balloon outlines, perfect outline-shaped masking (we white-out the traced rect, not a pixel-perfect balloon silhouette), and removing tails from the original art.
