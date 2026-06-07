@@ -217,6 +217,7 @@ function applySnapshot(snap) {
   if (data.shapeInsets && typeof data.shapeInsets === "object") {
     state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
   }
+  state.whiteoutMasks = Array.isArray(data.whiteoutMasks) ? data.whiteoutMasks : [];
   syncShapeInsetInputs();
 }
 function undo() {
