@@ -2604,6 +2604,7 @@ $("btn-save").addEventListener("click", () => {
     nextId: state.nextId,
     defaultTailW: state.defaultTailW,
     shapeInsets: state.shapeInsets,
+    whiteoutMasks: state.whiteoutMasks,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
