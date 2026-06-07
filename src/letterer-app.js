@@ -30,6 +30,14 @@ const state = {
   // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
   // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
   shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
+  // Trace-existing-balloon mode. When true, dragging on the canvas marquees a rectangle
+  // around an existing on-page balloon; on release the rect is OCR'd and turned into an
+  // editable balloon (with optional white-out of the original art beneath it).
+  traceMode: false,
+  // Per-balloon white-out rectangles in image coordinates. Rendered as solid white rects
+  // BEFORE balloon shapes so they sit between the page image and the new editable balloon.
+  // Each entry: { id, balloonId, x, y, w, h }. Saved with the project and included in PNG export.
+  whiteoutMasks: [],
 };
 
 // Map a balloon shape name to one of the four inset categories.
