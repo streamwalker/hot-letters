@@ -928,6 +928,26 @@ function render() {
   const defs = document.createElementNS(SVG_NS, "defs");
   overlay.appendChild(defs);
 
+  // ---- Whiteout masks (Trace Existing Balloon) ----
+  // Rendered FIRST so they sit underneath every balloon, tail, and connector — but on top
+  // of the page <img>. Each mask is a solid white rectangle covering the original on-page
+  // balloon the user chose to erase. Included in PNG export because the export clones the
+  // whole overlay SVG.
+  if (state.whiteoutMasks && state.whiteoutMasks.length) {
+    for (const m of state.whiteoutMasks) {
+      const r = document.createElementNS(SVG_NS, "rect");
+      r.setAttribute("x", m.x);
+      r.setAttribute("y", m.y);
+      r.setAttribute("width", m.w);
+      r.setAttribute("height", m.h);
+      r.setAttribute("fill", "#ffffff");
+      r.setAttribute("stroke", "none");
+      r.setAttribute("data-whiteout", m.id);
+      overlay.appendChild(r);
+    }
+  }
+
+
   // ---- First pass: render linked pairs as joined shapes ----
   // For each linked pair, draw both tails (behind), both fills (no stroke), and both strokes
   // with masks so each balloon's stroke does not intrude into its partner's silhouette.
