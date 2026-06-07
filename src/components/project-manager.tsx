@@ -293,6 +293,56 @@ export function ProjectManager() {
     }
   }
 
+  async function handleDuplicate() {
+    if (!userId || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      // Flush any pending autosave so the duplicate captures the latest edits.
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      const out = activeIdRef.current;
+      if (dirtyRef.current && out && window.__letterer) {
+        setSaveStatus("saving");
+        try {
+          const payload = window.__letterer.serialize();
+          await supabase
+            .from("projects")
+            .update({ data: payload as never, updated_at: new Date().toISOString() })
+            .eq("id", out);
+          dirtyRef.current = false;
+          setHasUnsaved(false);
+        } catch (e) {
+          console.error("Flush before duplicate failed", e);
+        }
+      }
+      const baseName = currentName() || "Untitled";
+      const name = suggestUniqueName(`${baseName} (copy)`);
+      const payload = window.__letterer ? window.__letterer.serialize() : {};
+      const { data, error: e } = await supabase
+        .from("projects")
+        .insert({ user_id: userId, name, data: payload as never })
+        .select("id, name, updated_at")
+        .single();
+      if (e) throw e;
+      const row = data as ProjectRow;
+      setProjects((prev) => [row, ...prev]);
+      setActiveId(row.id);
+      try { localStorage.setItem(ACTIVE_KEY, row.id); } catch { /* ignore */ }
+      loadedRef.current = true; // editor content already matches the new row.
+      setSaveStatus("idle");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("Duplicate failed", e);
+      setError(msg);
+      window.alert(`Could not duplicate: ${msg}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRename() {
     if (!userId || !activeId || busy) return;
     const name = promptUniqueName(currentName(), activeId);
