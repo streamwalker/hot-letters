@@ -571,6 +571,15 @@ export function ProjectManager() {
       >
         Save As…
       </button>
+      <button
+        type="button"
+        onClick={handleDuplicate}
+        disabled={busy || !activeId}
+        style={baseBtn}
+        title="Create a new project that is a copy of this one"
+      >
+        Duplicate
+      </button>
 
       <button
         type="button"
