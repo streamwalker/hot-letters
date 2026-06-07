@@ -2005,6 +2005,11 @@ function deleteBalloon(b) {
     if (partner) partner.linkedTo = null;
   }
   state.balloons = state.balloons.filter(x => x.id !== b.id);
+  // Remove any whiteout mask anchored to this balloon so deleting the balloon also reveals
+  // the original art underneath.
+  if (state.whiteoutMasks && state.whiteoutMasks.length) {
+    state.whiteoutMasks = state.whiteoutMasks.filter(m => m.balloonId !== b.id);
+  }
   state.selectedId = null;
   render();
 }
