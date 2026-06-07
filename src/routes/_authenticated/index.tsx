@@ -60,32 +60,6 @@ function Letterer() {
   const confirmBtnRef = useRef<HTMLButtonElement | null>(null);
   const lastFocusedRef = useRef<HTMLElement | null>(null);
 
-  // Hologram emitter controls — persisted across reloads.
-  const [holoGlow, setHoloGlow] = useState<number>(() =>
-    readNum("holo-glow", HOLO_DEFAULTS.glow, 0, 2),
-  );
-  const [holoSpeed, setHoloSpeed] = useState<number>(() =>
-    readNum("holo-speed", HOLO_DEFAULTS.speed, 0.2, 4),
-  );
-  const [holoOpen, setHoloOpen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return HOLO_DEFAULTS.open;
-    try {
-      const raw = window.localStorage.getItem("holo-controls-open");
-      if (raw == null) return HOLO_DEFAULTS.open;
-      return raw === "1";
-    } catch {
-      return HOLO_DEFAULTS.open;
-    }
-  });
-  useEffect(() => {
-    try { window.localStorage.setItem("holo-glow", String(holoGlow)); } catch { /* ignore */ }
-  }, [holoGlow]);
-  useEffect(() => {
-    try { window.localStorage.setItem("holo-speed", String(holoSpeed)); } catch { /* ignore */ }
-  }, [holoSpeed]);
-  useEffect(() => {
-    try { window.localStorage.setItem("holo-controls-open", holoOpen ? "1" : "0"); } catch { /* ignore */ }
-  }, [holoOpen]);
 
   // When the dialog opens, remember focus and move it to the destructive
   // action; restore focus on close.
