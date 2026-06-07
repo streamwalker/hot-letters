@@ -471,6 +471,49 @@ export function ProjectManager() {
       />
       <button
         type="button"
+        onClick={async () => {
+          if (busy) return;
+          if (dirtyRef.current) {
+            const proceed = window.confirm(
+              `"${currentName()}" has unsaved changes.\n\n` +
+              `Save them and start a new project?\n\n` +
+              `(Cancel to stay on this project.)`,
+            );
+            if (!proceed) return;
+            // Flush pending autosave before creating the new project.
+            if (saveTimerRef.current) {
+              clearTimeout(saveTimerRef.current);
+              saveTimerRef.current = null;
+            }
+            const out = activeIdRef.current;
+            if (out && window.__letterer) {
+              setSaveStatus("saving");
+              try {
+                const payload = window.__letterer.serialize();
+                await supabase
+                  .from("projects")
+                  .update({ data: payload as never, updated_at: new Date().toISOString() })
+                  .eq("id", out);
+                dirtyRef.current = false;
+                setHasUnsaved(false);
+              } catch (e) {
+                console.error("Flush before new failed", e);
+                setSaveStatus("error");
+                setSaveError(e instanceof Error ? e.message : String(e));
+                return;
+              }
+            }
+          }
+          await handleStartNew();
+        }}
+        disabled={busy}
+        style={{ ...baseBtn, background: "#1e4a8a", borderColor: "#3a7bd5" }}
+        title="Start a new blank project"
+      >
+        + New
+      </button>
+      <button
+        type="button"
         onClick={handleSaveAs}
         disabled={busy}
         style={baseBtn}
@@ -478,6 +521,7 @@ export function ProjectManager() {
       >
         Save As…
       </button>
+
       <button
         type="button"
         onClick={handleRename}
