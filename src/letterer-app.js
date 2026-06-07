@@ -3484,6 +3484,13 @@ function setMobileMode(on) {
 }
 
 $("btn-mobile-toggle").addEventListener("click", () => setMobileMode(!state.mobileMode));
+const btnExitMobile = $("btn-exit-mobile");
+if (btnExitMobile) {
+  btnExitMobile.addEventListener("click", () => {
+    setMobileMode(false);
+    toast("Switched to desktop view");
+  });
+}
 
 function closeAllSheets() {
   document.querySelector("aside.left").classList.remove("sheet-open");
