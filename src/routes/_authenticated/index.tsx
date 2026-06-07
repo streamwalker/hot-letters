@@ -52,20 +52,6 @@ declare global {
   }
 }
 
-const HOLO_DEFAULTS = { glow: 1, speed: 1, open: true };
-
-function readNum(key: string, fallback: number, min: number, max: number): number {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (raw == null) return fallback;
-    const n = Number.parseFloat(raw);
-    if (!Number.isFinite(n)) return fallback;
-    return Math.min(max, Math.max(min, n));
-  } catch {
-    return fallback;
-  }
-}
 
 function Letterer() {
   const ranRef = useRef(false);
