@@ -983,7 +983,8 @@ async function traceBalloonFromRect(x, y, w, h) {
   pushUndo();
 
   // Build the new balloon centered on the traced rect.
-  const b = cloneBalloon("");
+  const b = cloneBalloon(" ");
+  b.text = "";
   b.cx = x + w / 2;
   b.cy = y + h / 2;
   // Leave a small inset so the new outline sits just inside the traced area.
