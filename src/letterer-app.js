@@ -200,6 +200,7 @@ function snapshotState() {
     parsedLines: state.parsedLines,
     defaultTailW: state.defaultTailW,
     shapeInsets: state.shapeInsets,
+    whiteoutMasks: state.whiteoutMasks,
   });
 }
 function pushUndo() {
