@@ -30,6 +30,14 @@ const state = {
   // Per-shape default text inset (fraction 0..0.4) used when a balloon's edgeInset is "auto".
   // Lets the user fine-tune, per shape category, how close exported text gets to the outline.
   shapeInsets: { burst: 0.22, cloud: 0.16, oval: 0.10, box: 0.08 },
+  // Trace-existing-balloon mode. When true, dragging on the canvas marquees a rectangle
+  // around an existing on-page balloon; on release the rect is OCR'd and turned into an
+  // editable balloon (with optional white-out of the original art beneath it).
+  traceMode: false,
+  // Per-balloon white-out rectangles in image coordinates. Rendered as solid white rects
+  // BEFORE balloon shapes so they sit between the page image and the new editable balloon.
+  // Each entry: { id, balloonId, x, y, w, h }. Saved with the project and included in PNG export.
+  whiteoutMasks: [],
 };
 
 // Map a balloon shape name to one of the four inset categories.
@@ -192,6 +200,7 @@ function snapshotState() {
     parsedLines: state.parsedLines,
     defaultTailW: state.defaultTailW,
     shapeInsets: state.shapeInsets,
+    whiteoutMasks: state.whiteoutMasks,
   });
 }
 function pushUndo() {
@@ -208,6 +217,7 @@ function applySnapshot(snap) {
   if (data.shapeInsets && typeof data.shapeInsets === "object") {
     state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
   }
+  state.whiteoutMasks = Array.isArray(data.whiteoutMasks) ? data.whiteoutMasks : [];
   syncShapeInsetInputs();
 }
 function undo() {
@@ -844,6 +854,194 @@ $("btn-add-balloon").addEventListener("click", () => {
   render();
 });
 
+// ============== TRACE EXISTING BALLOON ==============
+// Allows the user to convert balloons already drawn on the uploaded page into editable
+// balloons. Flow: toggle trace mode → drag a rectangle around an existing balloon →
+// the rect is OCR'd into a new editable balloon over the same spot, with an optional
+// white-out rectangle that hides the original art underneath.
+function setTraceMode(on) {
+  state.traceMode = !!on;
+  const btn = $("btn-trace-balloon");
+  if (btn) btn.classList.toggle("active", state.traceMode);
+  if (stage) stage.classList.toggle("trace-mode", state.traceMode);
+  const hint = $("trace-hint");
+  if (hint) hint.style.display = state.traceMode ? "block" : "none";
+}
+
+$("btn-trace-balloon").addEventListener("click", () => {
+  if (!state.imageDataUrl) { toast("Load a page image first"); return; }
+  // Cancel any pending connect-picker mode so the two modal modes don't fight each other.
+  if (state.connectPickerSourceId) state.connectPickerSourceId = null;
+  setTraceMode(!state.traceMode);
+  if (state.traceMode) toast("Drag a rectangle around an existing balloon");
+});
+
+// Marquee drag in image coordinates. Uses pointerdown CAPTURE on the stage so balloon
+// hit-areas don't swallow the event when trace mode is active.
+let traceDrag = null;
+let traceMarqueeEl = null;
+
+stage.addEventListener("pointerdown", (e) => {
+  if (!state.traceMode) return;
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const p = clientToImage(e.clientX, e.clientY);
+  traceDrag = { startX: p.x, startY: p.y, curX: p.x, curY: p.y };
+  // Pre-create the marquee rect on the overlay so updates are cheap.
+  if (traceMarqueeEl && traceMarqueeEl.parentNode) traceMarqueeEl.parentNode.removeChild(traceMarqueeEl);
+  traceMarqueeEl = document.createElementNS(SVG_NS, "rect");
+  traceMarqueeEl.setAttribute("fill", "rgba(245,166,35,0.18)");
+  traceMarqueeEl.setAttribute("stroke", "#f5a623");
+  traceMarqueeEl.setAttribute("stroke-width", Math.max(1, 2 / state.zoom));
+  traceMarqueeEl.setAttribute("stroke-dasharray", `${6 / state.zoom} ${4 / state.zoom}`);
+  traceMarqueeEl.setAttribute("pointer-events", "none");
+  updateTraceMarquee();
+  overlay.appendChild(traceMarqueeEl);
+}, true);
+
+function updateTraceMarquee() {
+  if (!traceDrag || !traceMarqueeEl) return;
+  const x = Math.min(traceDrag.startX, traceDrag.curX);
+  const y = Math.min(traceDrag.startY, traceDrag.curY);
+  const w = Math.abs(traceDrag.curX - traceDrag.startX);
+  const h = Math.abs(traceDrag.curY - traceDrag.startY);
+  traceMarqueeEl.setAttribute("x", x);
+  traceMarqueeEl.setAttribute("y", y);
+  traceMarqueeEl.setAttribute("width", w);
+  traceMarqueeEl.setAttribute("height", h);
+}
+
+window.addEventListener("pointermove", (e) => {
+  if (!traceDrag) return;
+  const p = clientToImage(e.clientX, e.clientY);
+  traceDrag.curX = p.x;
+  traceDrag.curY = p.y;
+  updateTraceMarquee();
+});
+
+window.addEventListener("pointerup", async (e) => {
+  if (!traceDrag) return;
+  const d = traceDrag;
+  traceDrag = null;
+  if (traceMarqueeEl && traceMarqueeEl.parentNode) traceMarqueeEl.parentNode.removeChild(traceMarqueeEl);
+  traceMarqueeEl = null;
+
+  const x = Math.round(Math.max(0, Math.min(d.startX, d.curX)));
+  const y = Math.round(Math.max(0, Math.min(d.startY, d.curY)));
+  const w = Math.round(Math.min(state.imageW - x, Math.abs(d.curX - d.startX)));
+  const h = Math.round(Math.min(state.imageH - y, Math.abs(d.curY - d.startY)));
+
+  // Ignore stray clicks / tiny rectangles to avoid accidental balloons.
+  if (w < 20 || h < 20) return;
+
+  try {
+    await traceBalloonFromRect(x, y, w, h);
+  } catch (err) {
+    console.error(err);
+    await appAlert("Trace failed: " + (err && err.message ? err.message : String(err)), "Trace");
+  }
+});
+
+// Crop the page image to the given image-space rect and return base64 (no data: prefix) + mime.
+function cropPageToBase64(x, y, w, h) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(img, x, y, w, h, 0, 0, w, h);
+        const dataUrl = c.toDataURL("image/png");
+        const base64 = dataUrl.split(",")[1];
+        resolve({ base64, mimeType: "image/png" });
+      } catch (e) { reject(e); }
+    };
+    img.onerror = () => reject(new Error("Could not read page image for cropping"));
+    img.src = state.imageDataUrl;
+  });
+}
+
+async function ocrBalloonRect(base64, mimeType) {
+  const resp = await fetch("/api/ocr-balloon", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageBase64: base64, mimeType }),
+  });
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error("OCR failed (" + resp.status + "): " + errText.slice(0, 200));
+  }
+  const data = await resp.json();
+  return (data && typeof data.text === "string") ? data.text : "";
+}
+
+async function traceBalloonFromRect(x, y, w, h) {
+  toast("Reading balloon text…");
+  // Push a single undo entry that covers both the new balloon and (optionally) its whiteout mask.
+  pushUndo();
+
+  // Build the new balloon centered on the traced rect.
+  const b = cloneBalloon(" ");
+  b.text = "";
+  b.cx = x + w / 2;
+  b.cy = y + h / 2;
+  // Leave a small inset so the new outline sits just inside the traced area.
+  b.rx = Math.max(40, w / 2 - 2);
+  b.ry = Math.max(28, h / 2 - 2);
+  // Tail points downward from the balloon by default; the user can drag it to the speaker.
+  b.tailX = b.cx;
+  b.tailY = Math.min(state.imageH, b.cy + b.ry + 60);
+  state.balloons.push(b);
+  state.selectedId = b.id;
+  render();
+
+  // OCR the cropped rect and fill the balloon with the result.
+  let ocrText = "";
+  try {
+    const { base64, mimeType } = await cropPageToBase64(x, y, w, h);
+    ocrText = await ocrBalloonRect(base64, mimeType);
+  } catch (err) {
+    console.error(err);
+    toast("Couldn't read text — type it in");
+  }
+  b.text = (ocrText && ocrText.trim()) || "";
+  if (!b.text) {
+    b.text = "Type here…";
+    toast("No text detected — edit balloon directly");
+  } else {
+    toast("Text extracted");
+  }
+  render();
+  syncInspector();
+
+  // Ask whether to erase the original balloon underneath.
+  const erase = await appModal({
+    title: "Erase original?",
+    body: "White-out the original balloon underneath this new editable one? This covers the traced rectangle with white in the canvas and the exported PNG.",
+    okLabel: "Erase",
+    cancelLabel: "Keep original",
+  });
+  if (erase) {
+    state.whiteoutMasks.push({
+      id: "wo" + (state.nextId++),
+      balloonId: b.id,
+      x, y, w, h,
+    });
+    render();
+    toast("Original erased");
+  }
+}
+
+// Esc exits trace mode just like it exits connect-picker mode.
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && state.traceMode) {
+    setTraceMode(false);
+    toast("Trace mode off");
+  }
+});
+
 // ============== RENDER ==============
 // Render a balloon's tail into the given parent SVG node. Used both inside per-balloon groups and during the
 // linked-pair pre-pass (where tails must be drawn before the joined body fills cover them).
@@ -917,6 +1115,26 @@ function render() {
   // Defs container for masks (created once per render)
   const defs = document.createElementNS(SVG_NS, "defs");
   overlay.appendChild(defs);
+
+  // ---- Whiteout masks (Trace Existing Balloon) ----
+  // Rendered FIRST so they sit underneath every balloon, tail, and connector — but on top
+  // of the page <img>. Each mask is a solid white rectangle covering the original on-page
+  // balloon the user chose to erase. Included in PNG export because the export clones the
+  // whole overlay SVG.
+  if (state.whiteoutMasks && state.whiteoutMasks.length) {
+    for (const m of state.whiteoutMasks) {
+      const r = document.createElementNS(SVG_NS, "rect");
+      r.setAttribute("x", m.x);
+      r.setAttribute("y", m.y);
+      r.setAttribute("width", m.w);
+      r.setAttribute("height", m.h);
+      r.setAttribute("fill", "#ffffff");
+      r.setAttribute("stroke", "none");
+      r.setAttribute("data-whiteout", m.id);
+      overlay.appendChild(r);
+    }
+  }
+
 
   // ---- First pass: render linked pairs as joined shapes ----
   // For each linked pair, draw both tails (behind), both fills (no stroke), and both strokes
@@ -1975,6 +2193,11 @@ function deleteBalloon(b) {
     if (partner) partner.linkedTo = null;
   }
   state.balloons = state.balloons.filter(x => x.id !== b.id);
+  // Remove any whiteout mask anchored to this balloon so deleting the balloon also reveals
+  // the original art underneath.
+  if (state.whiteoutMasks && state.whiteoutMasks.length) {
+    state.whiteoutMasks = state.whiteoutMasks.filter(m => m.balloonId !== b.id);
+  }
   state.selectedId = null;
   render();
 }
@@ -2569,6 +2792,7 @@ $("btn-save").addEventListener("click", () => {
     nextId: state.nextId,
     defaultTailW: state.defaultTailW,
     shapeInsets: state.shapeInsets,
+    whiteoutMasks: state.whiteoutMasks,
     ui: {
       mobileMode: state.mobileMode,
       sideBySide: state.sideBySide,
@@ -2598,6 +2822,7 @@ $("file-load").addEventListener("change", (e) => {
       state.nextId = data.nextId || (state.balloons.length + 1);
       if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
       if (data.shapeInsets && typeof data.shapeInsets === "object") state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
+      state.whiteoutMasks = Array.isArray(data.whiteoutMasks) ? data.whiteoutMasks : [];
       syncShapeInsetInputs();
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }

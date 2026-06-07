@@ -15,6 +15,7 @@ import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as ApiOcrScriptRouteImport } from './routes/api/ocr-script'
+import { Route as ApiOcrBalloonRouteImport } from './routes/api/ocr-balloon'
 
 const PanelcraftRoute = PanelcraftRouteImport.update({
   id: '/panelcraft',
@@ -45,18 +46,25 @@ const ApiOcrScriptRoute = ApiOcrScriptRouteImport.update({
   path: '/api/ocr-script',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOcrBalloonRoute = ApiOcrBalloonRouteImport.update({
+  id: '/api/ocr-balloon',
+  path: '/api/ocr-balloon',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
 }
 export interface FileRoutesByTo {
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/': typeof AuthenticatedIndexRoute
 }
@@ -66,20 +74,34 @@ export interface FileRoutesById {
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/diagnostics' | '/login' | '/panelcraft' | '/api/ocr-script'
+  fullPaths:
+    | '/'
+    | '/diagnostics'
+    | '/login'
+    | '/panelcraft'
+    | '/api/ocr-balloon'
+    | '/api/ocr-script'
   fileRoutesByTo: FileRoutesByTo
-  to: '/diagnostics' | '/login' | '/panelcraft' | '/api/ocr-script' | '/'
+  to:
+    | '/diagnostics'
+    | '/login'
+    | '/panelcraft'
+    | '/api/ocr-balloon'
+    | '/api/ocr-script'
+    | '/'
   id:
     | '__root__'
     | '/_authenticated'
     | '/diagnostics'
     | '/login'
     | '/panelcraft'
+    | '/api/ocr-balloon'
     | '/api/ocr-script'
     | '/_authenticated/'
   fileRoutesById: FileRoutesById
@@ -89,6 +111,7 @@ export interface RootRouteChildren {
   DiagnosticsRoute: typeof DiagnosticsRoute
   LoginRoute: typeof LoginRoute
   PanelcraftRoute: typeof PanelcraftRoute
+  ApiOcrBalloonRoute: typeof ApiOcrBalloonRoute
   ApiOcrScriptRoute: typeof ApiOcrScriptRoute
 }
 
@@ -136,6 +159,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOcrScriptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ocr-balloon': {
+      id: '/api/ocr-balloon'
+      path: '/api/ocr-balloon'
+      fullPath: '/api/ocr-balloon'
+      preLoaderRoute: typeof ApiOcrBalloonRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -156,18 +186,9 @@ const rootRouteChildren: RootRouteChildren = {
   DiagnosticsRoute: DiagnosticsRoute,
   LoginRoute: LoginRoute,
   PanelcraftRoute: PanelcraftRoute,
+  ApiOcrBalloonRoute: ApiOcrBalloonRoute,
   ApiOcrScriptRoute: ApiOcrScriptRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
