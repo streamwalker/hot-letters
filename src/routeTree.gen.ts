@@ -16,6 +16,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as ApiOcrScriptRouteImport } from './routes/api/ocr-script'
 import { Route as ApiOcrBalloonRouteImport } from './routes/api/ocr-balloon'
+import { Route as ApiCleanupImageRouteImport } from './routes/api/cleanup-image'
 
 const PanelcraftRoute = PanelcraftRouteImport.update({
   id: '/panelcraft',
@@ -51,12 +52,18 @@ const ApiOcrBalloonRoute = ApiOcrBalloonRouteImport.update({
   path: '/api/ocr-balloon',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCleanupImageRoute = ApiCleanupImageRouteImport.update({
+  id: '/api/cleanup-image',
+  path: '/api/cleanup-image',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/cleanup-image': typeof ApiCleanupImageRoute
   '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
 }
@@ -64,6 +71,7 @@ export interface FileRoutesByTo {
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/cleanup-image': typeof ApiCleanupImageRoute
   '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/': typeof AuthenticatedIndexRoute
@@ -74,6 +82,7 @@ export interface FileRoutesById {
   '/diagnostics': typeof DiagnosticsRoute
   '/login': typeof LoginRoute
   '/panelcraft': typeof PanelcraftRoute
+  '/api/cleanup-image': typeof ApiCleanupImageRoute
   '/api/ocr-balloon': typeof ApiOcrBalloonRoute
   '/api/ocr-script': typeof ApiOcrScriptRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
@@ -85,6 +94,7 @@ export interface FileRouteTypes {
     | '/diagnostics'
     | '/login'
     | '/panelcraft'
+    | '/api/cleanup-image'
     | '/api/ocr-balloon'
     | '/api/ocr-script'
   fileRoutesByTo: FileRoutesByTo
@@ -92,6 +102,7 @@ export interface FileRouteTypes {
     | '/diagnostics'
     | '/login'
     | '/panelcraft'
+    | '/api/cleanup-image'
     | '/api/ocr-balloon'
     | '/api/ocr-script'
     | '/'
@@ -101,6 +112,7 @@ export interface FileRouteTypes {
     | '/diagnostics'
     | '/login'
     | '/panelcraft'
+    | '/api/cleanup-image'
     | '/api/ocr-balloon'
     | '/api/ocr-script'
     | '/_authenticated/'
@@ -111,6 +123,7 @@ export interface RootRouteChildren {
   DiagnosticsRoute: typeof DiagnosticsRoute
   LoginRoute: typeof LoginRoute
   PanelcraftRoute: typeof PanelcraftRoute
+  ApiCleanupImageRoute: typeof ApiCleanupImageRoute
   ApiOcrBalloonRoute: typeof ApiOcrBalloonRoute
   ApiOcrScriptRoute: typeof ApiOcrScriptRoute
 }
@@ -166,6 +179,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOcrBalloonRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cleanup-image': {
+      id: '/api/cleanup-image'
+      path: '/api/cleanup-image'
+      fullPath: '/api/cleanup-image'
+      preLoaderRoute: typeof ApiCleanupImageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -186,9 +206,20 @@ const rootRouteChildren: RootRouteChildren = {
   DiagnosticsRoute: DiagnosticsRoute,
   LoginRoute: LoginRoute,
   PanelcraftRoute: PanelcraftRoute,
+  ApiCleanupImageRoute: ApiCleanupImageRoute,
   ApiOcrBalloonRoute: ApiOcrBalloonRoute,
   ApiOcrScriptRoute: ApiOcrScriptRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
