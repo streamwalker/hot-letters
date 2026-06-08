@@ -66,11 +66,21 @@ export const Route = createFileRoute("/api/cleanup-image")({
 
         if (!resp.ok) {
           const errText = await resp.text();
-          const status =
-            resp.status === 429 || resp.status === 402 ? resp.status : 502;
+          if (resp.status === 402) {
+            return Response.json(
+              { error: "credits_exhausted", message: "Lovable AI credits exhausted. Please top up in your workspace billing settings." },
+              { status: 402 },
+            );
+          }
+          if (resp.status === 429) {
+            return Response.json(
+              { error: "rate_limited", message: "AI is rate-limited. Please wait a moment and try again." },
+              { status: 429 },
+            );
+          }
           return new Response(
             `AI gateway error ${resp.status}: ${errText.slice(0, 400)}`,
-            { status },
+            { status: 502 },
           );
         }
 
