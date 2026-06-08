@@ -1353,15 +1353,32 @@ function render() {
   // whole overlay SVG.
   if (state.whiteoutMasks && state.whiteoutMasks.length) {
     for (const m of state.whiteoutMasks) {
-      const r = document.createElementNS(SVG_NS, "rect");
-      r.setAttribute("x", m.x);
-      r.setAttribute("y", m.y);
-      r.setAttribute("width", m.w);
-      r.setAttribute("height", m.h);
-      r.setAttribute("fill", "#ffffff");
-      r.setAttribute("stroke", "none");
-      r.setAttribute("data-whiteout", m.id);
-      overlay.appendChild(r);
+      // Prefer an ellipse shaped to the anchored balloon so the whiteout
+      // hides the original art without leaving rectangular corners
+      // sticking out around the new (typically rounded) balloon.
+      const anchor = m.balloonId
+        ? state.balloons.find(bb => bb.id === m.balloonId)
+        : null;
+      let el;
+      if (anchor) {
+        const pad = 4;
+        el = document.createElementNS(SVG_NS, "ellipse");
+        el.setAttribute("cx", anchor.cx);
+        el.setAttribute("cy", anchor.cy);
+        el.setAttribute("rx", Math.max(1, (anchor.rx || 0) + pad));
+        el.setAttribute("ry", Math.max(1, (anchor.ry || 0) + pad));
+      } else {
+        // Legacy / unanchored masks: ellipse inscribed in the stored rect.
+        el = document.createElementNS(SVG_NS, "ellipse");
+        el.setAttribute("cx", m.x + m.w / 2);
+        el.setAttribute("cy", m.y + m.h / 2);
+        el.setAttribute("rx", m.w / 2);
+        el.setAttribute("ry", m.h / 2);
+      }
+      el.setAttribute("fill", "#ffffff");
+      el.setAttribute("stroke", "none");
+      el.setAttribute("data-whiteout", m.id);
+      overlay.appendChild(el);
     }
   }
 
