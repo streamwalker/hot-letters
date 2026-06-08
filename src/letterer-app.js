@@ -8,6 +8,76 @@ const PLATFORM_VERSION = "002";
 
 // ============== STATE ==============
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// AI gateway availability flag — flipped to true after a 402 (credits exhausted),
+// reset on the next successful AI call or on page reload. Used to disable AI
+// buttons (Trace Existing Balloon, Apply Clean Up, OCR Script) with a tooltip.
+const aiState = { disabled: false, reason: "" };
+function aiButtons() {
+  const ids = ["btn-trace-balloon", "btn-cleanup-apply"];
+  const out = [];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) out.push(el);
+  }
+  return out;
+}
+function setAiDisabled(reason) {
+  aiState.disabled = true;
+  aiState.reason = reason || "AI credits exhausted — top up to re-enable";
+  for (const el of aiButtons()) {
+    el.disabled = true;
+    el.dataset.aiOrigTitle = el.dataset.aiOrigTitle || el.getAttribute("title") || "";
+    el.setAttribute("title", aiState.reason);
+  }
+}
+function clearAiDisabled() {
+  if (!aiState.disabled) return;
+  aiState.disabled = false;
+  aiState.reason = "";
+  for (const el of aiButtons()) {
+    el.disabled = false;
+    if (el.dataset.aiOrigTitle !== undefined) {
+      el.setAttribute("title", el.dataset.aiOrigTitle);
+    }
+  }
+}
+// Inspect an AI gateway response. Returns { ok, kind, message }.
+// kind: "ok" | "credits" | "rate_limit" | "other"
+async function inspectAiResponse(resp) {
+  if (resp.ok) { clearAiDisabled(); return { ok: true, kind: "ok", message: "" }; }
+  let msg = "";
+  let kind = "other";
+  try {
+    const ct = resp.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const j = await resp.json();
+      msg = (j && (j.message || j.error)) || "";
+      if (j && j.error === "credits_exhausted") kind = "credits";
+      else if (j && j.error === "rate_limited") kind = "rate_limit";
+    } else {
+      msg = await resp.text();
+    }
+  } catch { /* ignore */ }
+  if (kind === "other") {
+    if (resp.status === 402) kind = "credits";
+    else if (resp.status === 429) kind = "rate_limit";
+  }
+  if (kind === "credits") {
+    setAiDisabled("Lovable AI credits exhausted — top up in workspace billing to re-enable");
+    if (typeof toast === "function") toast("Lovable AI credits exhausted — please top up in your workspace billing settings");
+  } else if (kind === "rate_limit") {
+    if (typeof toast === "function") toast("AI is rate-limited — please wait a moment and try again");
+  }
+  return { ok: false, kind, message: msg || ("HTTP " + resp.status) };
+}
+function guardAiAvailable() {
+  if (!aiState.disabled) return true;
+  if (typeof toast === "function") toast(aiState.reason || "AI is currently unavailable");
+  return false;
+}
+
+
 const state = {
   imageDataUrl: null,
   imageW: 0, imageH: 0,
