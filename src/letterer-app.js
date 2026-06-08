@@ -1081,6 +1081,7 @@ async function ocrBalloonRect(base64, mimeType) {
 
 
 async function traceBalloonFromRect(x, y, w, h) {
+  if (!guardAiAvailable()) return;
   toast("Reading balloon text…");
   // Push a single undo entry that covers both the new balloon and (optionally) its whiteout mask.
   pushUndo();
