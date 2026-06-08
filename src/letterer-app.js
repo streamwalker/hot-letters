@@ -1042,6 +1042,236 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
+// ============== CLEAN UP (AI INPAINTING) ==============
+// Apple iOS Clean Up-style tool. The user paints over stray marks / old lettering /
+// unwanted objects on the page image; we send the page + a binary mask to Lovable AI
+// and replace the page image with the AI-reconstructed result.
+const cleanup = {
+  active: false,
+  brush: 40,           // brush radius in image pixels
+  strokes: [],         // [{points:[{x,y}], r}]
+  current: null,
+  history: [],         // prior imageDataUrl values for revert
+  busy: false,
+};
+
+function setCleanupMode(on) {
+  cleanup.active = !!on;
+  const btn = $("btn-cleanup");
+  if (btn) btn.classList.toggle("active", cleanup.active);
+  if (stage) stage.classList.toggle("cleanup-mode", cleanup.active);
+  const hint = $("cleanup-hint");
+  if (hint) hint.style.display = cleanup.active ? "block" : "none";
+  const panel = $("cleanup-panel");
+  if (panel) panel.style.display = cleanup.active ? "block" : "none";
+  if (!cleanup.active) {
+    cleanup.strokes = [];
+    cleanup.current = null;
+    redrawCleanupOverlay();
+  } else {
+    // Cancel other modal modes.
+    if (state.traceMode) setTraceMode(false);
+    if (state.connectPickerSourceId) state.connectPickerSourceId = null;
+    updateCleanupRevertBtn();
+  }
+}
+
+function updateCleanupRevertBtn() {
+  const row = $("cleanup-revert-row");
+  if (row) row.style.display = cleanup.history.length ? "block" : "none";
+}
+
+$("btn-cleanup").addEventListener("click", () => {
+  if (!state.imageDataUrl) { toast("Load a page image first"); return; }
+  setCleanupMode(!cleanup.active);
+});
+
+$("btn-cleanup-cancel").addEventListener("click", () => setCleanupMode(false));
+$("btn-cleanup-clear").addEventListener("click", () => {
+  cleanup.strokes = [];
+  redrawCleanupOverlay();
+});
+$("btn-cleanup-undo").addEventListener("click", () => {
+  cleanup.strokes.pop();
+  redrawCleanupOverlay();
+});
+const brushInput = $("cleanup-brush");
+const brushVal = $("cleanup-brush-val");
+brushInput.addEventListener("input", () => {
+  cleanup.brush = Number(brushInput.value) || 40;
+  brushVal.textContent = String(cleanup.brush);
+});
+cleanup.brush = Number(brushInput.value) || 40;
+
+// SVG overlay group for cleanup strokes (lives in #overlay, cleared on render()).
+let cleanupOverlayGroup = null;
+function ensureCleanupOverlay() {
+  if (cleanupOverlayGroup && cleanupOverlayGroup.parentNode === overlay) return cleanupOverlayGroup;
+  cleanupOverlayGroup = document.createElementNS(SVG_NS, "g");
+  cleanupOverlayGroup.setAttribute("id", "cleanup-overlay");
+  cleanupOverlayGroup.setAttribute("pointer-events", "none");
+  overlay.appendChild(cleanupOverlayGroup);
+  return cleanupOverlayGroup;
+}
+function redrawCleanupOverlay() {
+  const g = ensureCleanupOverlay();
+  while (g.firstChild) g.removeChild(g.firstChild);
+  if (!cleanup.active) return;
+  const all = cleanup.current ? cleanup.strokes.concat([cleanup.current]) : cleanup.strokes;
+  for (const s of all) {
+    if (!s.points.length) continue;
+    let d = "";
+    s.points.forEach((p, i) => { d += (i === 0 ? "M" : "L") + p.x + " " + p.y; });
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "rgba(78,161,255,0.55)");
+    path.setAttribute("stroke-width", String(s.r * 2));
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    g.appendChild(path);
+  }
+}
+
+stage.addEventListener("pointerdown", (e) => {
+  if (!cleanup.active) return;
+  if (e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const p = clientToImage(e.clientX, e.clientY);
+  cleanup.current = { points: [p], r: cleanup.brush };
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+  redrawCleanupOverlay();
+}, true);
+
+stage.addEventListener("pointermove", (e) => {
+  if (!cleanup.active || !cleanup.current) return;
+  const p = clientToImage(e.clientX, e.clientY);
+  const last = cleanup.current.points[cleanup.current.points.length - 1];
+  if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 1) {
+    cleanup.current.points.push(p);
+    redrawCleanupOverlay();
+  }
+}, true);
+
+window.addEventListener("pointerup", () => {
+  if (!cleanup.active || !cleanup.current) return;
+  if (cleanup.current.points.length) cleanup.strokes.push(cleanup.current);
+  cleanup.current = null;
+  redrawCleanupOverlay();
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && cleanup.active) {
+    setCleanupMode(false);
+    toast("Clean Up cancelled");
+  }
+});
+
+function buildCleanupMaskDataUrl() {
+  // White on black PNG, image resolution. White = erase.
+  const c = document.createElement("canvas");
+  c.width = state.imageW; c.height = state.imageH;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.strokeStyle = "#fff";
+  ctx.fillStyle = "#fff";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (const s of cleanup.strokes) {
+    if (!s.points.length) continue;
+    ctx.lineWidth = s.r * 2;
+    ctx.beginPath();
+    s.points.forEach((p, i) => { i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+    ctx.stroke();
+    // also dot endpoints so single-tap erases something
+    for (const p of s.points) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  return c.toDataURL("image/png");
+}
+
+$("btn-cleanup-apply").addEventListener("click", async () => {
+  if (cleanup.busy) return;
+  if (!cleanup.strokes.length) { toast("Paint over something to clean up first"); return; }
+  if (!state.imageDataUrl) { toast("No page image"); return; }
+  cleanup.busy = true;
+  const busy = $("cleanup-busy");
+  if (busy) busy.style.display = "flex";
+  const applyBtn = $("btn-cleanup-apply");
+  if (applyBtn) applyBtn.disabled = true;
+  try {
+    const maskDataUrl = buildCleanupMaskDataUrl();
+    const resp = await fetch("/api/cleanup-image", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageDataUrl: state.imageDataUrl, maskDataUrl }),
+    });
+    if (!resp.ok) {
+      const err = await resp.text();
+      if (resp.status === 429) throw new Error("Rate limited — please try again in a moment.");
+      if (resp.status === 402) throw new Error("AI credits exhausted. Add credits in Workspace → Usage to keep using Clean Up.");
+      throw new Error(err.slice(0, 240) || ("HTTP " + resp.status));
+    }
+    const data = await resp.json();
+    if (!data.imageDataUrl) throw new Error("AI did not return an image");
+    // Push the prior image onto the revert stack and swap in the cleaned one.
+    cleanup.history.push(state.imageDataUrl);
+    state.imageDataUrl = data.imageDataUrl;
+    // Reload into the <img> so canvas size stays in sync if dimensions differ.
+    await new Promise((res) => {
+      pageImg.onload = () => res();
+      pageImg.src = state.imageDataUrl;
+    });
+    state.imageW = pageImg.naturalWidth;
+    state.imageH = pageImg.naturalHeight;
+    overlay.setAttribute("viewBox", `0 0 ${state.imageW} ${state.imageH}`);
+    overlay.setAttribute("width", state.imageW);
+    overlay.setAttribute("height", state.imageH);
+    pageImg.style.width = state.imageW + "px";
+    pageImg.style.height = state.imageH + "px";
+    stage.style.width = state.imageW + "px";
+    stage.style.height = state.imageH + "px";
+    cleanup.strokes = [];
+    redrawCleanupOverlay();
+    render();
+    updateCleanupRevertBtn();
+    toast("Clean Up applied");
+  } catch (err) {
+    console.error(err);
+    await appAlert((err && err.message) || String(err), "Clean Up failed");
+  } finally {
+    cleanup.busy = false;
+    if (busy) busy.style.display = "none";
+    if (applyBtn) applyBtn.disabled = false;
+  }
+});
+
+$("btn-cleanup-revert").addEventListener("click", async () => {
+  if (!cleanup.history.length) return;
+  const prev = cleanup.history.pop();
+  state.imageDataUrl = prev;
+  await new Promise((res) => {
+    pageImg.onload = () => res();
+    pageImg.src = prev;
+  });
+  state.imageW = pageImg.naturalWidth;
+  state.imageH = pageImg.naturalHeight;
+  overlay.setAttribute("viewBox", `0 0 ${state.imageW} ${state.imageH}`);
+  pageImg.style.width = state.imageW + "px";
+  pageImg.style.height = state.imageH + "px";
+  stage.style.width = state.imageW + "px";
+  stage.style.height = state.imageH + "px";
+  render();
+  updateCleanupRevertBtn();
+  toast("Clean Up reverted");
+});
+
+
+
 // ============== RENDER ==============
 // Render a balloon's tail into the given parent SVG node. Used both inside per-balloon groups and during the
 // linked-pair pre-pass (where tails must be drawn before the joined body fills cover them).
