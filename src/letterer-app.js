@@ -249,6 +249,7 @@ function applySnapshot(snap) {
     state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
   }
   state.whiteoutMasks = Array.isArray(data.whiteoutMasks) ? data.whiteoutMasks : [];
+  migrateWhiteoutMasks();
   syncShapeInsetInputs();
 }
 function undo() {
