@@ -8,6 +8,76 @@ const PLATFORM_VERSION = "002";
 
 // ============== STATE ==============
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// AI gateway availability flag — flipped to true after a 402 (credits exhausted),
+// reset on the next successful AI call or on page reload. Used to disable AI
+// buttons (Trace Existing Balloon, Apply Clean Up, OCR Script) with a tooltip.
+const aiState = { disabled: false, reason: "" };
+function aiButtons() {
+  const ids = ["btn-trace-balloon", "btn-cleanup-apply"];
+  const out = [];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) out.push(el);
+  }
+  return out;
+}
+function setAiDisabled(reason) {
+  aiState.disabled = true;
+  aiState.reason = reason || "AI credits exhausted — top up to re-enable";
+  for (const el of aiButtons()) {
+    el.disabled = true;
+    el.dataset.aiOrigTitle = el.dataset.aiOrigTitle || el.getAttribute("title") || "";
+    el.setAttribute("title", aiState.reason);
+  }
+}
+function clearAiDisabled() {
+  if (!aiState.disabled) return;
+  aiState.disabled = false;
+  aiState.reason = "";
+  for (const el of aiButtons()) {
+    el.disabled = false;
+    if (el.dataset.aiOrigTitle !== undefined) {
+      el.setAttribute("title", el.dataset.aiOrigTitle);
+    }
+  }
+}
+// Inspect an AI gateway response. Returns { ok, kind, message }.
+// kind: "ok" | "credits" | "rate_limit" | "other"
+async function inspectAiResponse(resp) {
+  if (resp.ok) { clearAiDisabled(); return { ok: true, kind: "ok", message: "" }; }
+  let msg = "";
+  let kind = "other";
+  try {
+    const ct = resp.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      const j = await resp.json();
+      msg = (j && (j.message || j.error)) || "";
+      if (j && j.error === "credits_exhausted") kind = "credits";
+      else if (j && j.error === "rate_limited") kind = "rate_limit";
+    } else {
+      msg = await resp.text();
+    }
+  } catch { /* ignore */ }
+  if (kind === "other") {
+    if (resp.status === 402) kind = "credits";
+    else if (resp.status === 429) kind = "rate_limit";
+  }
+  if (kind === "credits") {
+    setAiDisabled("Lovable AI credits exhausted — top up in workspace billing to re-enable");
+    if (typeof toast === "function") toast("Lovable AI credits exhausted — please top up in your workspace billing settings");
+  } else if (kind === "rate_limit") {
+    if (typeof toast === "function") toast("AI is rate-limited — please wait a moment and try again");
+  }
+  return { ok: false, kind, message: msg || ("HTTP " + resp.status) };
+}
+function guardAiAvailable() {
+  if (!aiState.disabled) return true;
+  if (typeof toast === "function") toast(aiState.reason || "AI is currently unavailable");
+  return false;
+}
+
+
 const state = {
   imageDataUrl: null,
   imageW: 0, imageH: 0,
@@ -1001,15 +1071,17 @@ async function ocrBalloonRect(base64, mimeType) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageBase64: base64, mimeType }),
   });
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error("OCR failed (" + resp.status + "): " + errText.slice(0, 200));
+  const info = await inspectAiResponse(resp);
+  if (!info.ok) {
+    throw new Error(info.message || ("OCR failed (" + resp.status + ")"));
   }
   const data = await resp.json();
   return (data && typeof data.text === "string") ? data.text : "";
 }
 
+
 async function traceBalloonFromRect(x, y, w, h) {
+  if (!guardAiAvailable()) return;
   toast("Reading balloon text…");
   // Push a single undo entry that covers both the new balloon and (optionally) its whiteout mask.
   pushUndo();
@@ -1228,6 +1300,7 @@ function buildCleanupMaskDataUrl() {
 
 $("btn-cleanup-apply").addEventListener("click", async () => {
   if (cleanup.busy) return;
+  if (!guardAiAvailable()) return;
   if (!cleanup.strokes.length) { toast("Paint over something to clean up first"); return; }
   if (!state.imageDataUrl) { toast("No page image"); return; }
   cleanup.busy = true;
@@ -1242,11 +1315,9 @@ $("btn-cleanup-apply").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageDataUrl: state.imageDataUrl, maskDataUrl }),
     });
-    if (!resp.ok) {
-      const err = await resp.text();
-      if (resp.status === 429) throw new Error("Rate limited — please try again in a moment.");
-      if (resp.status === 402) throw new Error("AI credits exhausted. Add credits in Workspace → Usage to keep using Clean Up.");
-      throw new Error(err.slice(0, 240) || ("HTTP " + resp.status));
+    const info = await inspectAiResponse(resp);
+    if (!info.ok) {
+      throw new Error(info.message || ("HTTP " + resp.status));
     }
     const data = await resp.json();
     if (!data.imageDataUrl) throw new Error("AI did not return an image");
@@ -1278,7 +1349,7 @@ $("btn-cleanup-apply").addEventListener("click", async () => {
   } finally {
     cleanup.busy = false;
     if (busy) busy.style.display = "none";
-    if (applyBtn) applyBtn.disabled = false;
+    if (applyBtn) applyBtn.disabled = aiState.disabled;
   }
 });
 
@@ -3897,6 +3968,10 @@ window.addEventListener("keydown", (e) => {
   // --- OCR: call /api/ocr-script for any photo lacking ocrText ---
   async function ocrPhoto(ph) {
     if (ph.ocrText || ph._ocrLoading) return;
+    if (aiState.disabled) {
+      ph.ocrError = aiState.reason || "AI unavailable";
+      return;
+    }
     ph._ocrLoading = true;
     refreshScriptViewerText();
     try {
@@ -3906,9 +3981,9 @@ window.addEventListener("keydown", (e) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType: ph.mediaType }),
       });
-      if (!resp.ok) {
-        const t = await resp.text();
-        ph.ocrError = "OCR failed: " + t.slice(0, 200);
+      const info = await inspectAiResponse(resp);
+      if (!info.ok) {
+        ph.ocrError = "OCR failed: " + (info.message || ("HTTP " + resp.status));
       } else {
         const data = await resp.json();
         ph.ocrText = (data && data.text) || "";
