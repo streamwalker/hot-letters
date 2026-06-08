@@ -1300,6 +1300,7 @@ function buildCleanupMaskDataUrl() {
 
 $("btn-cleanup-apply").addEventListener("click", async () => {
   if (cleanup.busy) return;
+  if (!guardAiAvailable()) return;
   if (!cleanup.strokes.length) { toast("Paint over something to clean up first"); return; }
   if (!state.imageDataUrl) { toast("No page image"); return; }
   cleanup.busy = true;
@@ -1314,11 +1315,9 @@ $("btn-cleanup-apply").addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageDataUrl: state.imageDataUrl, maskDataUrl }),
     });
-    if (!resp.ok) {
-      const err = await resp.text();
-      if (resp.status === 429) throw new Error("Rate limited — please try again in a moment.");
-      if (resp.status === 402) throw new Error("AI credits exhausted. Add credits in Workspace → Usage to keep using Clean Up.");
-      throw new Error(err.slice(0, 240) || ("HTTP " + resp.status));
+    const info = await inspectAiResponse(resp);
+    if (!info.ok) {
+      throw new Error(info.message || ("HTTP " + resp.status));
     }
     const data = await resp.json();
     if (!data.imageDataUrl) throw new Error("AI did not return an image");
