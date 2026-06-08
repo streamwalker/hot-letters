@@ -1349,7 +1349,7 @@ $("btn-cleanup-apply").addEventListener("click", async () => {
   } finally {
     cleanup.busy = false;
     if (busy) busy.style.display = "none";
-    if (applyBtn) applyBtn.disabled = false;
+    if (applyBtn) applyBtn.disabled = aiState.disabled;
   }
 });
 
