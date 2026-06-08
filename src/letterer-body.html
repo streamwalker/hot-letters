@@ -4,6 +4,7 @@
   <input type="file" id="file-image" accept="image/*">
   <button id="btn-add-balloon">+ Add Balloon</button>
   <button id="btn-trace-balloon" title="Trace an existing balloon on the page: drag a rectangle around it, the text is OCR'd into a new editable balloon, with the option to white-out the original underneath">Trace Existing Balloon</button>
+  <button id="btn-cleanup" title="Clean Up: paint over stray lines, old lettering, watermarks, or unwanted objects and AI rebuilds the art beneath">Clean Up ✨</button>
   <button id="btn-connect-toolbar" title="Select a balloon, then click another balloon to connect them with a narrow tube" disabled>Connect Balloons</button>
   <button id="btn-side-by-side" title="View script photo and comic page side by side">Script View</button>
   <button id="btn-reading-order" title="Show numbered reading order and trail (Klein-style)">Reading Order</button>
@@ -108,6 +109,26 @@ KRAKKK"></textarea>
       </div>
       <div id="drop-hint">Drop dialogue here</div>
       <div id="trace-hint" style="display:none;">Drag a rectangle around an existing balloon. <kbd>Esc</kbd> to exit.</div>
+      <div id="cleanup-hint" style="display:none;">Paint over anything you want erased. AI will rebuild the art beneath. <kbd>Esc</kbd> to exit.</div>
+      <div id="cleanup-panel" style="display:none;">
+        <div class="cleanup-row">
+          <label for="cleanup-brush">Brush</label>
+          <input type="range" id="cleanup-brush" min="8" max="160" step="2" value="40">
+          <span id="cleanup-brush-val">40</span>
+        </div>
+        <div class="cleanup-row cleanup-actions">
+          <button id="btn-cleanup-undo" title="Undo last stroke">↶ Stroke</button>
+          <button id="btn-cleanup-clear" title="Clear all strokes">Clear</button>
+          <button id="btn-cleanup-cancel">Cancel</button>
+          <button id="btn-cleanup-apply" class="primary">Apply Clean Up</button>
+        </div>
+        <div id="cleanup-revert-row" style="display:none;">
+          <button id="btn-cleanup-revert" title="Revert to the page before the last Clean Up">↶ Revert last Clean Up</button>
+        </div>
+        <div id="cleanup-busy" style="display:none;">
+          <span class="spinner"></span> Cleaning up with AI…
+        </div>
+      </div>
     </div>
   </section>
 
