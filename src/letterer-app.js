@@ -3102,6 +3102,7 @@ $("file-load").addEventListener("change", (e) => {
       if (typeof data.defaultTailW === "number") state.defaultTailW = data.defaultTailW;
       if (data.shapeInsets && typeof data.shapeInsets === "object") state.shapeInsets = { ...state.shapeInsets, ...data.shapeInsets };
       state.whiteoutMasks = Array.isArray(data.whiteoutMasks) ? data.whiteoutMasks : [];
+      migrateWhiteoutMasks();
       syncShapeInsetInputs();
       if (data.image) loadImage(data.image);
       else { state.imageW = data.imageW || 1000; state.imageH = data.imageH || 1500; render(); }
