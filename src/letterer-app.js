@@ -193,6 +193,37 @@ const undoStack = [];
 const redoStack = [];
 const MAX_UNDO = 50;
 
+// Legacy whiteout masks were stored as raw rectangles (no balloonId). When the
+// project is loaded we link each one to the balloon it was meant to cover so
+// render() draws an ellipse shaped to that balloon — no more rectangular
+// corners poking out around rounded balloons. Masks already carrying a valid
+// balloonId, or that can't be matched, are left untouched (renderer falls back
+// to an inscribed ellipse for those).
+function migrateWhiteoutMasks() {
+  if (!Array.isArray(state.whiteoutMasks) || !state.whiteoutMasks.length) return;
+  const balloons = Array.isArray(state.balloons) ? state.balloons : [];
+  for (const m of state.whiteoutMasks) {
+    if (m.balloonId && balloons.some(b => b.id === m.balloonId)) continue;
+    if (typeof m.x !== "number" || typeof m.y !== "number" ||
+        typeof m.w !== "number" || typeof m.h !== "number") continue;
+    const cx = m.x + m.w / 2, cy = m.y + m.h / 2;
+    // Pick the balloon whose center is closest to the mask center and whose
+    // bounding ellipse overlaps the mask rect at all.
+    let best = null, bestDist = Infinity;
+    for (const b of balloons) {
+      if (typeof b.cx !== "number" || typeof b.cy !== "number") continue;
+      const dx = b.cx - cx, dy = b.cy - cy;
+      const d = dx * dx + dy * dy;
+      const rx = b.rx || 0, ry = b.ry || 0;
+      // Require some overlap: balloon center within expanded mask rect.
+      if (Math.abs(dx) > m.w / 2 + rx || Math.abs(dy) > m.h / 2 + ry) continue;
+      if (d < bestDist) { bestDist = d; best = b; }
+    }
+    if (best) m.balloonId = best.id;
+  }
+}
+
+
 function snapshotState() {
   return JSON.stringify({
     balloons: state.balloons,
