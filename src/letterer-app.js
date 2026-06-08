@@ -3968,6 +3968,10 @@ window.addEventListener("keydown", (e) => {
   // --- OCR: call /api/ocr-script for any photo lacking ocrText ---
   async function ocrPhoto(ph) {
     if (ph.ocrText || ph._ocrLoading) return;
+    if (aiState.disabled) {
+      ph.ocrError = aiState.reason || "AI unavailable";
+      return;
+    }
     ph._ocrLoading = true;
     refreshScriptViewerText();
     try {
@@ -3977,9 +3981,9 @@ window.addEventListener("keydown", (e) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ imageBase64: base64, mimeType: ph.mediaType }),
       });
-      if (!resp.ok) {
-        const t = await resp.text();
-        ph.ocrError = "OCR failed: " + t.slice(0, 200);
+      const info = await inspectAiResponse(resp);
+      if (!info.ok) {
+        ph.ocrError = "OCR failed: " + (info.message || ("HTTP " + resp.status));
       } else {
         const data = await resp.json();
         ph.ocrText = (data && data.text) || "";
