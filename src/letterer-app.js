@@ -1071,13 +1071,14 @@ async function ocrBalloonRect(base64, mimeType) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageBase64: base64, mimeType }),
   });
-  if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error("OCR failed (" + resp.status + "): " + errText.slice(0, 200));
+  const info = await inspectAiResponse(resp);
+  if (!info.ok) {
+    throw new Error(info.message || ("OCR failed (" + resp.status + ")"));
   }
   const data = await resp.json();
   return (data && typeof data.text === "string") ? data.text : "";
 }
+
 
 async function traceBalloonFromRect(x, y, w, h) {
   toast("Reading balloon text…");
