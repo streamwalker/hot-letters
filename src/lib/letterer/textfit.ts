@@ -8,7 +8,7 @@
 //   - line height 1.18 × font size
 //   - per-shape safe-area insets (burst .22 / cloud .16 / oval .10 / box .08)
 
-import { Balloon, ShapeInsets, shapeInsetCategory } from "../model/types";
+import { type Balloon, type ShapeInsets, shapeInsetCategory } from "./types";
 
 export interface FontSpec {
   font: string;

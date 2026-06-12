@@ -3,7 +3,7 @@
 // and shared verbatim between the live SVG editor and the Canvas2D export pipeline
 // (via Path2D), guaranteeing the export is pixel-faithful to the editing view.
 
-import { Balloon } from "../model/types";
+import type { Balloon } from "./types";
 
 /** Deterministic seeded RNG (mulberry32) so "organic" jitter is stable per balloon. */
 export function mulberry32(seed: number): () => number {
